@@ -2,12 +2,15 @@
 // Reuses the same VAPID key pair as the Warehouse Hub's push-message function,
 // so no new secrets are needed in this Supabase project.
 //
-// Deploy:  supabase functions deploy recv-push
-// Secrets already set for the Hub and reused here:
-//   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT, PUSH_TRIGGER_SECRET
+// Deploy from the Supabase dashboard (Edge Functions -> Deploy a new function ->
+// Via Editor), name it exactly `recv-push`, and turn "Verify JWT" OFF — the
+// shared x-push-secret header is the auth for this endpoint.
 //
-// Call it from a Database Webhook on insert into recv_comments, with header
-//   x-push-secret: <PUSH_TRIGGER_SECRET>
+// Secrets read here, all already set for the Hub:
+//   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, PUSH_TRIGGER_SECRET
+//
+// Called by the Database Webhooks that db/webhooks.sql installs on
+// recv_comments (insert) and recv_sheets (status change).
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import webpush from "npm:web-push@3.6.7";
 
@@ -17,7 +20,7 @@ const admin = createClient(
 );
 
 webpush.setVapidDetails(
-  Deno.env.get("VAPID_SUBJECT") || "mailto:karley@justforkix.com",
+  "mailto:karley@justforkix.com",
   Deno.env.get("VAPID_PUBLIC_KEY")!,
   Deno.env.get("VAPID_PRIVATE_KEY")!,
 );
@@ -30,9 +33,10 @@ Deno.serve(async (req) => {
   }
 
   const payload = await req.json().catch(() => ({}));
-  // Supabase database webhooks send { type, table, record, old_record }
+  // Supabase database webhooks send { type, table, schema, record, old_record }
   const table = payload.table ?? payload.source;
   const rec = payload.record ?? payload;
+  const old = payload.old_record ?? null;
 
   let title = "JFK Receiving";
   let body = "";
@@ -41,12 +45,20 @@ Deno.serve(async (req) => {
   if (table === "recv_comments") {
     const [{ data: sheet }, { data: author }] = await Promise.all([
       admin.from("recv_sheets").select("title, po_number").eq("id", rec.sheet_id).maybeSingle(),
-      admin.from("recv_people").select("name").eq("id", rec.author_id).maybeSingle(),
+      rec.author_id
+        ? admin.from("recv_people").select("name").eq("id", rec.author_id).maybeSingle()
+        : Promise.resolve({ data: null }),
     ]);
     title = `${author?.name ?? "Someone"} commented on PO# ${sheet?.po_number ?? "?"}`;
     body = String(rec.body ?? "").slice(0, 140);
     skipPersonId = rec.author_id ?? null;   // don't notify the author of their own comment
-  } else if (table === "recv_sheets" && rec.status === "submitted") {
+  } else if (table === "recv_sheets") {
+    // only on the transition INTO submitted — never on later edits to a submitted sheet
+    if (rec.status !== "submitted" || old?.status === "submitted") {
+      return new Response(JSON.stringify({ skipped: true, reason: "not a submit transition" }), {
+        headers: { "content-type": "application/json" },
+      });
+    }
     title = `Sheet submitted — PO# ${rec.po_number ?? "?"}`;
     body = String(rec.title ?? "").slice(0, 140);
   } else if (payload.title) {
@@ -63,8 +75,10 @@ Deno.serve(async (req) => {
   const { data: subs, error } = await q;
   if (error) return new Response(error.message, { status: 500 });
 
-  const note = JSON.stringify({ title, body, url: APP_URL, tag: rec.sheet_id ?? undefined });
+  // tag groups notifications per sheet; sw.js sets renotify so each one still alerts
+  const note = JSON.stringify({ title, body, url: APP_URL, tag: rec.sheet_id ?? rec.id ?? undefined });
   let sent = 0;
+  const errors: string[] = [];
   const stale: string[] = [];
 
   await Promise.all((subs ?? []).map(async (s) => {
@@ -72,8 +86,9 @@ Deno.serve(async (req) => {
       await webpush.sendNotification(s.subscription, note);
       sent++;
     } catch (e) {
-      const code = (e as { statusCode?: number })?.statusCode;
-      if (code === 404 || code === 410) stale.push(s.endpoint);   // device gone
+      const err = e as { statusCode?: number; body?: string; message?: string };
+      errors.push(`${err.statusCode ?? "?"}: ${(err.body || err.message || "").slice(0, 200)}`);
+      if (err.statusCode === 404 || err.statusCode === 410) stale.push(s.endpoint);   // device gone
     }
   }));
 
@@ -81,7 +96,7 @@ Deno.serve(async (req) => {
     await admin.from("recv_push_subscriptions").delete().in("endpoint", stale);
   }
 
-  return new Response(JSON.stringify({ sent, pruned: stale.length }), {
+  return new Response(JSON.stringify({ sent, pruned: stale.length, errors }), {
     headers: { "content-type": "application/json" },
   });
 });

@@ -5,6 +5,8 @@
 -- Paste into the Supabase SQL editor. Safe to re-run.
 -- ============================================================
 
+create extension if not exists pg_trgm;
+
 -- ---------- membership (mirrors the returns_* pattern) ----------
 create table if not exists recv_invited_emails (
   email      text primary key,
@@ -40,7 +42,7 @@ create or replace function public.recv_handle_login() returns void
   language plpgsql security definer set search_path = public as $$
 declare
   uid uuid := auth.uid();
-  e   text := lower(coalesce((select email from auth.users where id = auth.uid()), ''));
+  e   text := lower(coalesce(auth.email(), ''));
   inv recv_invited_emails;
 begin
   if uid is null or e = '' then return; end if;
@@ -56,8 +58,26 @@ begin
         set auth_user_id = uid, is_admin = inv.is_admin;
   end if;
 end $$;
+grant execute on function public.recv_handle_login() to authenticated;
 
--- ---------- item catalog (synced from NetSuite) ----------
+-- Members may edit their own name/color but never their own admin flag,
+-- email, or auth link. Same guard the Hub uses on profiles.
+create or replace function public.recv_people_guard() returns trigger
+  language plpgsql security definer set search_path = public as $$
+begin
+  if not public.recv_is_admin() then
+    new.is_admin     := old.is_admin;
+    new.auth_user_id := old.auth_user_id;
+    new.email        := old.email;
+  end if;
+  return new;
+end $$;
+drop trigger if exists recv_people_before_update on recv_people;
+create trigger recv_people_before_update
+  before update on recv_people
+  for each row execute function public.recv_people_guard();
+
+-- ---------- item catalog (synced from NetSuite by the recv-sync-catalog function) ----------
 create table if not exists recv_catalog (
   sku          text primary key,
   style        text not null,
@@ -68,10 +88,37 @@ create table if not exists recv_catalog (
   synced_at    timestamptz not null default now()
 );
 create index if not exists recv_catalog_style_color_idx on recv_catalog (style_color);
-create index if not exists recv_catalog_sku_trgm_idx    on recv_catalog (sku text_pattern_ops);
 
--- Optional display aliases for size tokens (e.g. XXL shown as 2XL).
--- Empty by default: the real NetSuite token is used unless an alias exists.
+-- One row per style-color, so autocomplete searches ~2,300 rows instead of
+-- ~19,000 SKU rows and never silently truncates. Refreshed by recv_refresh_styles().
+create table if not exists recv_catalog_styles (
+  style_color text primary key,
+  style       text not null,
+  color       text,
+  size_count  int  not null default 0,
+  synced_at   timestamptz not null default now()
+);
+create index if not exists recv_catalog_styles_trgm
+  on recv_catalog_styles using gin (style_color gin_trgm_ops);
+
+create or replace function public.recv_refresh_styles() returns int
+  language plpgsql security definer set search_path = public as $$
+declare n int;
+begin
+  insert into recv_catalog_styles (style_color, style, color, size_count, synced_at)
+    select style_color, min(style), min(color), count(*), now()
+      from recv_catalog group by style_color
+  on conflict (style_color) do update
+    set style = excluded.style, color = excluded.color,
+        size_count = excluded.size_count, synced_at = excluded.synced_at;
+  delete from recv_catalog_styles s
+   where not exists (select 1 from recv_catalog c where c.style_color = s.style_color);
+  get diagnostics n = row_count;
+  return (select count(*) from recv_catalog_styles);
+end $$;
+
+-- Optional display aliases for size tokens. Empty by default: the real NetSuite
+-- token is shown unless an alias exists (Karley's call, 2026-09-10).
 create table if not exists recv_size_labels (
   ns_size       text primary key,
   display_label text not null,
@@ -99,21 +146,24 @@ create index if not exists recv_sheets_created_idx on recv_sheets (created_at de
 
 -- A style#-color block within a sheet. A sheet may hold one or many:
 -- AC6833-Ivory and AC6833-Navy can share a sheet or live on separate sheets.
+-- FK constraints are NAMED so PostgREST embeds can be disambiguated by hint.
 create table if not exists recv_sheet_groups (
   id          uuid primary key default gen_random_uuid(),
-  sheet_id    uuid not null references recv_sheets(id) on delete cascade,
+  sheet_id    uuid not null,
   style       text not null,
   color       text,
   style_color text not null,
-  sort_order  int  not null default 0
+  sort_order  int  not null default 0,
+  constraint recv_sheet_groups_sheet_fk
+    foreign key (sheet_id) references recv_sheets(id) on delete cascade
 );
 create index if not exists recv_sheet_groups_sheet_idx on recv_sheet_groups (sheet_id, sort_order);
 
 -- One row per size. counted_qty is maintained by trigger from recv_line_boxes.
 create table if not exists recv_sheet_lines (
   id            uuid primary key default gen_random_uuid(),
-  sheet_id      uuid not null references recv_sheets(id) on delete cascade,
-  group_id      uuid not null references recv_sheet_groups(id) on delete cascade,
+  sheet_id      uuid not null,
+  group_id      uuid not null,
   sku           text,
   size          text not null,
   po_qty        integer,
@@ -121,7 +171,11 @@ create table if not exists recv_sheet_lines (
   pick_bin      text,
   overstock_bin text,
   shelved       boolean not null default false,
-  sort_order    int not null default 0
+  sort_order    int not null default 0,
+  constraint recv_sheet_lines_sheet_fk
+    foreign key (sheet_id) references recv_sheets(id) on delete cascade,
+  constraint recv_sheet_lines_group_fk
+    foreign key (group_id) references recv_sheet_groups(id) on delete cascade
 );
 create index if not exists recv_sheet_lines_group_idx on recv_sheet_lines (group_id, sort_order);
 create index if not exists recv_sheet_lines_sheet_idx on recv_sheet_lines (sheet_id);
@@ -138,10 +192,28 @@ create table if not exists recv_line_boxes (
 );
 create index if not exists recv_line_boxes_line_idx on recv_line_boxes (line_id, box_no);
 
+-- The database hands out the next box number, so two people counting the
+-- same size at once can't collide on the unique (line_id, box_no).
+create or replace function public.recv_add_box(p_line uuid) returns recv_line_boxes
+  language plpgsql security definer set search_path = public as $$
+declare r recv_line_boxes;
+begin
+  if not public.recv_is_member() then raise exception 'not a member'; end if;
+  insert into recv_line_boxes (line_id, box_no, qty, created_by)
+    values (p_line,
+            coalesce((select max(box_no) from recv_line_boxes where line_id = p_line), 0) + 1,
+            0, public.recv_me())
+    returning * into r;
+  return r;
+end $$;
+grant execute on function public.recv_add_box(uuid) to authenticated;
+
 create or replace function public.recv_recount_line() returns trigger
   language plpgsql security definer set search_path = public as $$
-declare tgt uuid := coalesce(new.line_id, old.line_id);
+declare tgt uuid;
 begin
+  -- NEW is unassigned on DELETE, so branch on TG_OP rather than coalescing.
+  if tg_op = 'DELETE' then tgt := old.line_id; else tgt := new.line_id; end if;
   update recv_sheet_lines l
      set counted_qty = coalesce((select sum(b.qty) from recv_line_boxes b where b.line_id = tgt), 0)
    where l.id = tgt;
@@ -212,6 +284,9 @@ create trigger recv_lines_audit after update on recv_sheet_lines
   for each row execute function public.recv_log_line_change();
 
 -- ---------- push notification subscriptions ----------
+-- A push endpoint belongs to a browser, not a person. On a shared device the
+-- most recent person to turn notifications on owns it; recv_claim_push handles
+-- the hand-over so RLS never blocks the second person.
 create table if not exists recv_push_subscriptions (
   id           uuid primary key default gen_random_uuid(),
   person_id    uuid not null references recv_people(id) on delete cascade,
@@ -221,7 +296,33 @@ create table if not exists recv_push_subscriptions (
 );
 create index if not exists recv_push_person_idx on recv_push_subscriptions (person_id);
 
--- ---------- settings (email recipients etc., admin-editable) ----------
+create or replace function public.recv_claim_push(p_endpoint text, p_subscription jsonb)
+  returns void language plpgsql security definer set search_path = public as $$
+begin
+  if not public.recv_is_member() then raise exception 'not a member'; end if;
+  delete from recv_push_subscriptions where endpoint = p_endpoint and person_id <> public.recv_me();
+  insert into recv_push_subscriptions (person_id, endpoint, subscription)
+    values (public.recv_me(), p_endpoint, p_subscription)
+  on conflict (endpoint) do update
+    set person_id = public.recv_me(), subscription = excluded.subscription;
+end $$;
+grant execute on function public.recv_claim_push(text, jsonb) to authenticated;
+
+create or replace function public.recv_release_push(p_endpoint text)
+  returns void language plpgsql security definer set search_path = public as $$
+begin
+  delete from recv_push_subscriptions where endpoint = p_endpoint and person_id = public.recv_me();
+end $$;
+grant execute on function public.recv_release_push(text) to authenticated;
+
+create or replace function public.recv_has_push(p_endpoint text)
+  returns boolean language sql security definer stable set search_path = public as $$
+  select exists (select 1 from recv_push_subscriptions
+                  where endpoint = p_endpoint and person_id = public.recv_me())
+$$;
+grant execute on function public.recv_has_push(text) to authenticated;
+
+-- ---------- settings (email recipients, sync status; admin-editable) ----------
 create table if not exists recv_settings (
   key        text primary key,
   value      text,
@@ -241,33 +342,36 @@ create table if not exists recv_doc (
 -- ============================================================
 -- Row-level security
 -- ============================================================
-alter table recv_invited_emails enable row level security;
-alter table recv_people         enable row level security;
-alter table recv_catalog        enable row level security;
-alter table recv_size_labels    enable row level security;
-alter table recv_sheets         enable row level security;
-alter table recv_sheet_groups   enable row level security;
-alter table recv_sheet_lines    enable row level security;
-alter table recv_line_boxes     enable row level security;
-alter table recv_comments       enable row level security;
-alter table recv_audit          enable row level security;
-alter table recv_doc            enable row level security;
-alter table recv_settings       enable row level security;
+alter table recv_invited_emails     enable row level security;
+alter table recv_people             enable row level security;
+alter table recv_catalog            enable row level security;
+alter table recv_catalog_styles     enable row level security;
+alter table recv_size_labels        enable row level security;
+alter table recv_sheets             enable row level security;
+alter table recv_sheet_groups       enable row level security;
+alter table recv_sheet_lines        enable row level security;
+alter table recv_line_boxes         enable row level security;
+alter table recv_comments           enable row level security;
+alter table recv_audit              enable row level security;
+alter table recv_doc                enable row level security;
+alter table recv_settings           enable row level security;
 alter table recv_push_subscriptions enable row level security;
 
--- invites: you can see your own; admins manage
-drop policy if exists recv_inv_read   on recv_invited_emails;
+-- invites: you can see your own; admins manage.
+-- auth.email() is a JWT read — never sub-select auth.users from a policy.
+drop policy if exists recv_inv_read  on recv_invited_emails;
 create policy recv_inv_read on recv_invited_emails for select to authenticated
-  using (public.recv_is_admin() or lower(email) = lower(coalesce((select email from auth.users where id = auth.uid()),'')));
-drop policy if exists recv_inv_write  on recv_invited_emails;
+  using (public.recv_is_admin() or lower(email) = lower(coalesce(auth.email(), '')));
+drop policy if exists recv_inv_write on recv_invited_emails;
 create policy recv_inv_write on recv_invited_emails for all to authenticated
   using (public.recv_is_admin()) with check (public.recv_is_admin());
 
--- people: members read the roster; you edit yourself, admins edit anyone
-drop policy if exists recv_people_read on recv_people;
+-- people: members read the roster; you edit yourself (guard trigger protects
+-- the admin flag), admins edit anyone
+drop policy if exists recv_people_read  on recv_people;
 create policy recv_people_read on recv_people for select to authenticated
   using (public.recv_is_member());
-drop policy if exists recv_people_upd  on recv_people;
+drop policy if exists recv_people_upd   on recv_people;
 create policy recv_people_upd on recv_people for update to authenticated
   using (auth_user_id = auth.uid() or public.recv_is_admin())
   with check (auth_user_id = auth.uid() or public.recv_is_admin());
@@ -275,22 +379,29 @@ drop policy if exists recv_people_admin on recv_people;
 create policy recv_people_admin on recv_people for all to authenticated
   using (public.recv_is_admin()) with check (public.recv_is_admin());
 
--- catalog + size labels: members read, admins write (sync runs as service role)
-drop policy if exists recv_cat_read on recv_catalog;
+-- catalog + styles + size labels: members read; writes come from the sync
+-- function (service role) or admins
+drop policy if exists recv_cat_read  on recv_catalog;
 create policy recv_cat_read on recv_catalog for select to authenticated using (public.recv_is_member());
 drop policy if exists recv_cat_write on recv_catalog;
 create policy recv_cat_write on recv_catalog for all to authenticated
   using (public.recv_is_admin()) with check (public.recv_is_admin());
 
-drop policy if exists recv_size_read on recv_size_labels;
+drop policy if exists recv_styles_read  on recv_catalog_styles;
+create policy recv_styles_read on recv_catalog_styles for select to authenticated using (public.recv_is_member());
+drop policy if exists recv_styles_write on recv_catalog_styles;
+create policy recv_styles_write on recv_catalog_styles for all to authenticated
+  using (public.recv_is_admin()) with check (public.recv_is_admin());
+
+drop policy if exists recv_size_read  on recv_size_labels;
 create policy recv_size_read on recv_size_labels for select to authenticated using (public.recv_is_member());
 drop policy if exists recv_size_write on recv_size_labels;
 create policy recv_size_write on recv_size_labels for all to authenticated
   using (public.recv_is_admin()) with check (public.recv_is_admin());
 
--- sheets and their contents: any member may read and edit (nothing locks),
+-- sheets and their contents: any member may read and edit (nothing locks);
 -- deletes are admin-only so history can't be quietly dropped.
-drop policy if exists recv_sheets_rw on recv_sheets;
+drop policy if exists recv_sheets_rw  on recv_sheets;
 create policy recv_sheets_rw on recv_sheets for select to authenticated using (public.recv_is_member());
 drop policy if exists recv_sheets_ins on recv_sheets;
 create policy recv_sheets_ins on recv_sheets for insert to authenticated with check (public.recv_is_member());
@@ -315,35 +426,37 @@ create policy recv_boxes_rw on recv_line_boxes for all to authenticated
 -- comments: members read and post; author or admin may edit/remove
 drop policy if exists recv_com_read on recv_comments;
 create policy recv_com_read on recv_comments for select to authenticated using (public.recv_is_member());
-drop policy if exists recv_com_ins on recv_comments;
+drop policy if exists recv_com_ins  on recv_comments;
 create policy recv_com_ins on recv_comments for insert to authenticated
   with check (public.recv_is_member() and author_id = public.recv_me());
-drop policy if exists recv_com_mod on recv_comments;
+drop policy if exists recv_com_mod  on recv_comments;
 create policy recv_com_mod on recv_comments for update to authenticated
   using (author_id = public.recv_me() or public.recv_is_admin())
   with check (author_id = public.recv_me() or public.recv_is_admin());
-drop policy if exists recv_com_del on recv_comments;
+drop policy if exists recv_com_del  on recv_comments;
 create policy recv_com_del on recv_comments for delete to authenticated
   using (author_id = public.recv_me() or public.recv_is_admin());
 
--- audit: members read, nobody edits (trigger writes it as security definer)
+-- audit: members read, nobody edits (the trigger writes it as security definer)
 drop policy if exists recv_audit_read on recv_audit;
 create policy recv_audit_read on recv_audit for select to authenticated using (public.recv_is_member());
 
 -- doc: members read, admins edit
-drop policy if exists recv_doc_read on recv_doc;
+drop policy if exists recv_doc_read  on recv_doc;
 create policy recv_doc_read on recv_doc for select to authenticated using (public.recv_is_member());
 drop policy if exists recv_doc_write on recv_doc;
 create policy recv_doc_write on recv_doc for all to authenticated
   using (public.recv_is_admin()) with check (public.recv_is_admin());
 
-drop policy if exists recv_set_read on recv_settings;
+-- settings: members read (sync status, greeting), admins write
+drop policy if exists recv_set_read  on recv_settings;
 create policy recv_set_read on recv_settings for select to authenticated using (public.recv_is_member());
 drop policy if exists recv_set_write on recv_settings;
 create policy recv_set_write on recv_settings for all to authenticated
   using (public.recv_is_admin()) with check (public.recv_is_admin());
 
--- push subscriptions: you manage your own devices; admins can clean up
+-- push subscriptions: you see and manage your own rows; the claim/release RPCs
+-- (security definer) handle the shared-device hand-over
 drop policy if exists recv_push_own on recv_push_subscriptions;
 create policy recv_push_own on recv_push_subscriptions for all to authenticated
   using (person_id = public.recv_me() or public.recv_is_admin())
@@ -354,8 +467,8 @@ insert into recv_invited_emails (email, name, is_admin)
   values ('karley@justforkix.com', 'Karley', true)
   on conflict (email) do update set is_admin = true, name = 'Karley';
 
--- email_to is intentionally blank: set it in Admin -> Email so nothing is
--- ever addressed to a guessed address.
+-- email_to is intentionally blank: set it in Admin so nothing is ever
+-- addressed to a guessed address.
 insert into recv_settings (key, value) values
   ('email_to',       ''),
   ('email_cc',       'karley@justforkix.com'),

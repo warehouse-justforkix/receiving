@@ -21,12 +21,12 @@
   <form class="auth-card" id="authForm">
     <p class="eyebrow">Just For Kix &middot; Warehouse</p>
     <h1>Receiving</h1>
-    <p class="auth-sub">Sign in with your warehouse account &mdash; the same email and password as the Hub.</p>
+    <p class="auth-sub">Use the <strong>same email and password as the Hub</strong>. Your account is shared across all the JFK warehouse apps &mdash; just sign in.</p>
     <label>Email<input type="email" id="authEmail" autocomplete="username" required></label>
     <label>Password<input type="password" id="authPass" autocomplete="current-password" required></label>
     <button type="submit" class="btn primary" id="authBtn">Sign in</button>
     <p class="auth-err" id="authErr" hidden></p>
-    <p class="auth-alt"><button type="button" class="linkish" id="signupToggle">First time here? Create your account</button></p>
+    <p class="auth-alt"><button type="button" class="linkish" id="signupToggle">Never used the Hub or Returns tracker? Create an account</button></p>
   </form>
 </div>
 
@@ -52,6 +52,7 @@
     <div>
       <strong>Turn on notifications</strong>
       <p class="sm">Get a nudge on this device when someone comments on a sheet or flags a discrepancy.</p>
+      <p class="sm" id="iosHint" hidden></p>
     </div>
     <div class="notif-actions">
       <button class="btn primary sm" id="notifOn">Turn on</button>
@@ -79,6 +80,12 @@
       <label class="check"><input type="checkbox" id="discrepOnly"> Discrepancies only</label>
     </div>
     <div id="sheetList" class="sheet-list"></div>
+
+    <div class="panel notif-panel">
+      <h3>Notifications on this device</h3>
+      <p class="muted sm" id="notifStatus">&nbsp;</p>
+      <button class="btn sm" id="notifManage">Turn on for this device</button>
+    </div>
   </section>
 
   <!-- ---------- one sheet ---------- -->
@@ -183,18 +190,17 @@
     <div class="panel">
       <h3>Catalog</h3>
       <p class="muted sm" id="catalogStat">&nbsp;</p>
-      <p class="muted sm">Refreshed by <code>python3 tools/sync_catalog.py</code> on Karley's Mac (it needs NetSuite access, so it can't run from the browser).</p>
+      <p class="muted sm">Every SKU that's been on a purchase order in the last 18 months, pulled from NetSuite. It refreshes itself nightly; press this if you need a new style right now.</p>
+      <button class="btn sm primary" id="syncNowBtn">Sync from NetSuite now</button>
     </div>
     <div class="panel">
-      <h3>Email &amp; notifications</h3>
+      <h3>Email</h3>
       <p class="muted sm">Discrepancy drafts are addressed to this person, copied to you.</p>
       <form id="emailForm" class="inline-form">
         <input type="email" id="setTo" placeholder="Send to (required)">
         <input type="email" id="setCc" placeholder="Copy to">
         <button class="btn primary sm" type="submit">Save</button>
       </form>
-      <p class="muted sm" id="notifStatus">&nbsp;</p>
-      <button class="btn sm" id="notifManage">Notifications on this device</button>
     </div>
     <div class="panel">
       <h3>Size labels</h3>

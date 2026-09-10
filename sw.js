@@ -11,6 +11,7 @@ self.addEventListener("push", (e) => {
       icon:  "icons/icon-192.png",
       badge: "icons/icon-192.png",
       tag:   data.tag || undefined,
+      renotify: !!data.tag,   // a 2nd comment on the same sheet still buzzes instead of silently replacing the 1st
       data:  { url: data.url || "./" },
     })
   );

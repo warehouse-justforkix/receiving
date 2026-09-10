@@ -252,6 +252,8 @@ label.check input { width:20px; height:20px; min-height:0; }
 .notif-banner p { margin:2px 0 0; color:var(--slate); }
 .notif-actions { display:flex; gap:8px; }
 
+.notif-panel { margin-top:16px; }
+
 /* ---------- toast ---------- */
 .toast {
   position:fixed; left:50%; bottom:22px; transform:translateX(-50%);

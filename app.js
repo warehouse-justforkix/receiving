@@ -2,7 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
 
 const VERSION = "v1";
-const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { storageKey: "recv-auth" } });
 const $  = (id) => document.getElementById(id);
 const el = (t, c, txt) => { const n = document.createElement(t); if (c) n.className = c; if (txt != null) n.textContent = txt; return n; };
 const esc = (s) => String(s ?? "").replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[m]));
@@ -46,7 +46,7 @@ $("authForm").addEventListener("submit", async (e) => {
   boot();
 });
 
-$("signOut").addEventListener("click", async () => { await sb.auth.signOut(); location.reload(); });
+$("signOut").addEventListener("click", async () => { await sb.auth.signOut({ scope: "local" }); location.reload(); });
 
 async function boot() {
   const { data: { session } } = await sb.auth.getSession();
@@ -77,6 +77,7 @@ async function boot() {
   await loadDoc();
   if (isAdmin) loadAdmin();
   maybeShowNotifBanner();
+  refreshNotifStatus();
 }
 
 async function loadSizeAliases() {
@@ -107,7 +108,7 @@ $("backToList").addEventListener("click", () => {
 async function loadSheets() {
   const { data, error } = await sb
     .from("recv_sheets")
-    .select("*, recv_sheet_lines(po_qty,counted_qty), recv_sheet_groups(style_color)")
+    .select("*, lines:recv_sheet_lines!recv_sheet_lines_sheet_fk(po_qty,counted_qty), grps:recv_sheet_groups!recv_sheet_groups_sheet_fk(style_color)")
     .order("created_at", { ascending: false });
   if (error) return fail("Loading sheets", error);
   sheets = data || [];
@@ -115,7 +116,7 @@ async function loadSheets() {
 }
 
 function sheetStats(s) {
-  const ls = s.recv_sheet_lines || [];
+  const ls = s.lines || [];
   let off = 0, counted = 0, po = 0, withPo = 0;
   ls.forEach((l) => {
     counted += l.counted_qty || 0;
@@ -135,7 +136,7 @@ function renderSheets() {
     if (st && s.status !== st) return false;
     if (only && stats.off === 0) return false;
     if (!q) return true;
-    const hay = [s.title, s.po_number, s.vendor, ...(s.recv_sheet_groups || []).map((g) => g.style_color)]
+    const hay = [s.title, s.po_number, s.vendor, ...(s.grps || []).map((g) => g.style_color)]
       .join(" ").toLowerCase();
     return hay.includes(q);
   });
@@ -158,7 +159,7 @@ function renderSheets() {
     const sub = el("p", "sub");
     sub.textContent = `PO# ${s.po_number || "—"}` +
       (s.vendor ? ` · ${s.vendor}` : "") +
-      ` · ${(s.recv_sheet_groups || []).length} style-color · ${when(s.created_at)}`;
+      ` · ${(s.grps || []).length} style-color · ${when(s.created_at)}`;
     const tally = el("div", "tally");
     tally.append(el("span", `pill ${s.status}`, s.status));
     const n = el("p", "sub");
@@ -216,7 +217,13 @@ async function openSheet(id) {
  ["sheetStatus", "status"], ["sheetAdj", "adjustment_number"]].forEach(([id, col]) => {
   $(id).addEventListener("change", async () => {
     const v = $(id).value.trim();
-    const patch = { [col]: v || null, updated_at: new Date().toISOString() };
+    const REQUIRED = { title: "Title", po_number: "PO number", status: "Status" };
+    if (REQUIRED[col] && !v) {            // title / po_number / status are NOT NULL
+      $(id).value = sheet[col] || "";
+      toast(`${REQUIRED[col]} can't be blank`);
+      return;
+    }
+    const patch = { [col]: REQUIRED[col] ? v : (v || null), updated_at: new Date().toISOString() };
     if (col === "status") {
       patch.submitted_at = v === "submitted" ? new Date().toISOString() : sheet.submitted_at;
       patch.closed_at    = v === "closed"    ? new Date().toISOString() : sheet.closed_at;
@@ -341,19 +348,22 @@ function drawBoxes(l, bx, row) {
   const add = el("button", "btn box-add", "+");
   add.title = "Add another box";
   add.addEventListener("click", async () => {
-    const next = (mine.length ? Math.max(...mine.map((b) => b.box_no)) : 0) + 1;
-    const { data, error } = await sb.from("recv_line_boxes")
-      .insert({ line_id: l.id, box_no: next, qty: 0, created_by: me.id }).select().single();
+    const { data, error } = await sb.rpc("recv_add_box", { p_line: l.id });
     if (error) return fail("Adding box", error);
-    boxes.push(data); await recount(l, row, bx);
+    if (data) boxes.push(data);
+    await recount(l, row, bx);
   });
   bx.append(add);
 }
 
 async function recount(l, row, bx) {
   // the DB trigger recomputes counted_qty from the boxes; read it back
-  const { data } = await sb.from("recv_sheet_lines").select("counted_qty").eq("id", l.id).single();
+  const [{ data }, { data: fresh }] = await Promise.all([
+    sb.from("recv_sheet_lines").select("counted_qty").eq("id", l.id).single(),
+    sb.from("recv_line_boxes").select("*").eq("line_id", l.id).order("box_no"),
+  ]);
   l.counted_qty = data?.counted_qty ?? 0;
+  boxes = boxes.filter((b) => b.line_id !== l.id).concat(fresh || []);
   const idx = lines.findIndex((x) => x.id === l.id);
   if (idx >= 0) lines[idx].counted_qty = l.counted_qty;
   drawBoxes(l, bx, row); refreshLine(l, row); renderTotals();
@@ -391,19 +401,13 @@ async function runAutocomplete() {
   const list = $("acList");
   if (q.length < 2) { list.hidden = true; return; }
   const { data, error } = await sb
-    .from("recv_catalog")
-    .select("style_color, style, color")
+    .from("recv_catalog_styles")
+    .select("style_color, style, color, size_count")
     .ilike("style_color", `%${q}%`)
-    .limit(400);
+    .order("style_color")
+    .limit(40);
   if (error) { fail("Searching catalog", error); return; }
-  const seen = new Map();
-  (data || []).forEach((r) => {
-    if (!seen.has(r.style_color)) seen.set(r.style_color, { ...r, n: 0 });
-    seen.get(r.style_color).n++;
-  });
-  acMatches = [...seen.values()]
-    .sort((a, b) => a.style_color.localeCompare(b.style_color))
-    .slice(0, 40);
+  acMatches = (data || []).map((r) => ({ ...r, n: r.size_count }));
   acSel = acMatches.length ? 0 : -1;
   paintAc();
 }
@@ -441,8 +445,13 @@ async function addGroup(styleColor) {
   if (groups.some((g) => g.style_color.toLowerCase() === styleColor.toLowerCase())) {
     toast("That style-color is already on this sheet"); return;
   }
+  const typed = styleColor.replace(/\s*-\s*/g, "-").trim();
   const { data: cat } = await sb.from("recv_catalog")
-    .select("sku, style, color, size").eq("style_color", styleColor);
+    .select("sku, style, color, size, style_color").ilike("style_color", typed);
+  if (cat?.length) styleColor = cat[0].style_color;      // use the catalog's exact casing
+  if (groups.some((g) => g.style_color.toLowerCase() === styleColor.toLowerCase())) {
+    toast("That style-color is already on this sheet"); return;
+  }
 
   const style = cat?.[0]?.style || styleColor.split("-")[0];
   const color = cat?.[0]?.color || styleColor.split("-").slice(1).join("-") || null;
@@ -454,9 +463,9 @@ async function addGroup(styleColor) {
 
   let sizes = (cat || []).map((c) => ({ size: c.size, sku: c.sku }));
   if (!sizes.length) {
-    const typed = prompt(`No catalog sizes for ${styleColor}. Type the sizes separated by commas:`, "XS, S, M, L, XL");
-    if (typed === null) { await sb.from("recv_sheet_groups").delete().eq("id", g.id); return; }
-    sizes = typed.split(",").map((s) => s.trim()).filter(Boolean).map((s) => ({ size: s, sku: `${styleColor}-${s}` }));
+    const typedSizes = prompt(`No catalog sizes for ${styleColor}. Type the sizes separated by commas:`, "XS, S, M, L, XL");
+    if (typedSizes === null) { await sb.from("recv_sheet_groups").delete().eq("id", g.id); return; }
+    sizes = typedSizes.split(",").map((s) => s.trim()).filter(Boolean).map((s) => ({ size: s, sku: null }));  // off-catalog: no invented SKU
   }
   sizes.sort((a, b) => sizeRank(a.size) - sizeRank(b.size) || a.size.localeCompare(b.size));
 
@@ -743,10 +752,7 @@ async function loadAdmin() {
     d.append(rm); box.append(d);
   });
 
-  const { count } = await sb.from("recv_catalog").select("*", { count: "exact", head: true });
-  $("catalogStat").textContent = count
-    ? `${count.toLocaleString()} SKUs available for autocomplete.`
-    : "Catalog is empty — run the sync so SKU autocomplete works.";
+  paintCatalogStat();
 
   $("setTo").value = settings.email_to || "";
   $("setCc").value = settings.email_cc || "";
@@ -812,22 +818,39 @@ async function currentSubscription() {
 async function maybeShowNotifBanner() {
   const banner = $("notifBanner");
   if (!banner) return;
-  if (!pushSupported() || Notification.permission === "denied" ||
-      localStorage.getItem("recv-notif-dismissed") === "1") {
-    banner.hidden = true; return;
+  const dismissedAt = Number(localStorage.getItem("recv-notif-dismissed") || 0);
+  const recentlyDismissed = dismissedAt && (Date.now() - dismissedAt) < 14 * 86400_000;
+  const denied = ("Notification" in window) && Notification.permission === "denied";
+  if (denied || recentlyDismissed) { banner.hidden = true; return; }
+
+  const hint = $("iosHint");
+  if (isIOS && !isInstalled()) {          // Safari tab on iPhone: can't subscribe until installed
+    if (hint) { hint.textContent = IOS_HINT; hint.hidden = false; }
+    $("notifOn").hidden = true;
+    banner.hidden = false; return;
   }
+  if (hint) hint.hidden = true;
+  $("notifOn").hidden = false;
+  if (!pushSupported()) { banner.hidden = true; return; }
   const sub = await currentSubscription();
   const registered = sub && (await isRegistered(sub.endpoint));
   banner.hidden = !!registered;
 }
 
 async function isRegistered(endpoint) {
-  const { data } = await sb.from("recv_push_subscriptions")
-    .select("id").eq("endpoint", endpoint).maybeSingle();
-  return !!data;
+  const { data } = await sb.rpc("recv_has_push", { p_endpoint: endpoint });
+  return data === true;
 }
 
+/* iOS only allows web push once the site is installed to the Home Screen. */
+const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+  (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const isInstalled = () => window.navigator.standalone === true ||
+  window.matchMedia("(display-mode: standalone)").matches;
+const IOS_HINT = "On iPhone or iPad: tap Share, then \"Add to Home Screen\", open Receiving from your home screen, then tap Turn on.";
+
 async function enableNotifications() {
+  if (isIOS && !isInstalled()) { toast(IOS_HINT); return false; }
   if (!pushSupported()) { toast("This browser can't do notifications"); return false; }
   try {
     const perm = Notification.permission === "granted"
@@ -843,10 +866,9 @@ async function enableNotifications() {
         applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY),
       });
     }
-    const json = sub.toJSON();
-    const { error } = await sb.from("recv_push_subscriptions").upsert({
-      person_id: me.id, endpoint: sub.endpoint, subscription: json,
-    }, { onConflict: "endpoint" });
+    const { error } = await sb.rpc("recv_claim_push", {
+      p_endpoint: sub.endpoint, p_subscription: sub.toJSON(),
+    });
     if (error) throw error;
     localStorage.removeItem("recv-notif-dismissed");
     $("notifBanner").hidden = true;
@@ -859,7 +881,7 @@ async function enableNotifications() {
 async function disableNotifications() {
   const sub = await currentSubscription();
   if (sub) {
-    await sb.from("recv_push_subscriptions").delete().eq("endpoint", sub.endpoint);
+    await sb.rpc("recv_release_push", { p_endpoint: sub.endpoint });
     await sub.unsubscribe();
   }
   toast("Notifications off for this device");
@@ -869,6 +891,7 @@ async function disableNotifications() {
 
 async function refreshNotifStatus() {
   const n = $("notifStatus"); if (!n) return;
+  if (isIOS && !isInstalled()) { n.textContent = IOS_HINT; return; }
   if (!pushSupported()) { n.textContent = "This browser doesn't support notifications."; return; }
   if (Notification.permission === "denied") {
     n.textContent = "Notifications are blocked in this browser's site settings.";
@@ -883,13 +906,46 @@ async function refreshNotifStatus() {
 
 $("notifOn")?.addEventListener("click", enableNotifications);
 $("notifNo")?.addEventListener("click", () => {
-  localStorage.setItem("recv-notif-dismissed", "1");
+  localStorage.setItem("recv-notif-dismissed", String(Date.now()));
   $("notifBanner").hidden = true;
 });
 $("notifManage")?.addEventListener("click", async () => {
   const sub = await currentSubscription();
   const on = sub && (await isRegistered(sub.endpoint));
   if (on) disableNotifications(); else enableNotifications();
+});
+
+/* ---------------- admin: catalog sync ---------------- */
+async function paintCatalogStat() {
+  await loadSettings();
+  const { count } = await sb.from("recv_catalog").select("*", { count: "exact", head: true });
+  const at = settings.catalog_synced_at
+    ? `last synced ${when(settings.catalog_synced_at)}` : "never synced";
+  const st = settings.catalog_sync_status ? ` · ${settings.catalog_sync_status}` : "";
+  $("catalogStat").textContent = count
+    ? `${count.toLocaleString()} SKUs · ${at}${st}`
+    : `Catalog is empty — ${at}${st}. Press Sync now.`;
+  const stale = settings.catalog_synced_at &&
+    (Date.now() - new Date(settings.catalog_synced_at).getTime()) > 8 * 86400_000;
+  $("catalogStat").style.color = (!count || stale) ? "var(--pink)" : "";
+}
+
+$("syncNowBtn")?.addEventListener("click", async () => {
+  const b = $("syncNowBtn"); b.disabled = true;
+  const { data, error } = await sb.functions.invoke("recv-sync-catalog", { body: { months: 18 } });
+  if (error) { b.disabled = false; return fail("Starting sync", error); }
+  toast(data?.started ? "Sync started — runs in the background" : (data?.status || "Sync already running"));
+  // poll the status the function writes into recv_settings
+  let ticks = 0;
+  const timer = setInterval(async () => {
+    await paintCatalogStat();
+    const st = settings.catalog_sync_status || "";
+    if (++ticks > 48 || !st.startsWith("running")) {   // ~4 min max
+      clearInterval(timer); b.disabled = false;
+      if (st.startsWith("ok")) toast("Catalog synced");
+      else if (st.startsWith("failed")) toast(st.slice(0, 120));
+    }
+  }, 5000);
 });
 
 /* ---------------- admin: email recipients ---------------- */
