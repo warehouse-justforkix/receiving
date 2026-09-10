@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#742d3f">
+<title>JFK Receiving</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Libre+Franklin:wght@400;600;700;800&display=swap">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="icon" href="icons/favicon.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Receiving">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ============ login gate ============ -->
+<div class="auth-gate" id="authGate">
+  <form class="auth-card" id="authForm">
+    <p class="eyebrow">Just For Kix &middot; Warehouse</p>
+    <h1>Receiving</h1>
+    <p class="auth-sub">Sign in with your warehouse account &mdash; the same email and password as the Hub.</p>
+    <label>Email<input type="email" id="authEmail" autocomplete="username" required></label>
+    <label>Password<input type="password" id="authPass" autocomplete="current-password" required></label>
+    <button type="submit" class="btn primary" id="authBtn">Sign in</button>
+    <p class="auth-err" id="authErr" hidden></p>
+    <p class="auth-alt"><button type="button" class="linkish" id="signupToggle">First time here? Create your account</button></p>
+  </form>
+</div>
+
+<!-- ============ app shell ============ -->
+<div class="app" id="app" hidden>
+  <header class="topbar">
+    <div class="brand">
+      <p class="eyebrow">Just For Kix &middot; Warehouse</p>
+      <h1>Receiving</h1>
+    </div>
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-view="sheets">Sheets</button>
+      <button class="tab" data-view="procedure">Procedure</button>
+      <button class="tab admin-only" data-view="admin" hidden>Admin</button>
+    </nav>
+    <div class="whoami">
+      <span id="whoName"></span>
+      <button class="btn ghost sm" id="signOut">Sign out</button>
+    </div>
+  </header>
+
+  <!-- ---------- sheet list ---------- -->
+  <section class="view" id="view-sheets">
+    <div class="view-head">
+      <div>
+        <h2>Count sheets</h2>
+        <p class="muted" id="sheetsSummary">&nbsp;</p>
+      </div>
+      <button class="btn primary" id="newSheetBtn">+ New sheet</button>
+    </div>
+    <div class="filters">
+      <input type="search" id="sheetSearch" placeholder="Search title, PO#, style&hellip;">
+      <select id="statusFilter">
+        <option value="">All statuses</option>
+        <option value="counting">Counting</option>
+        <option value="submitted">Submitted</option>
+        <option value="closed">Closed</option>
+      </select>
+      <label class="check"><input type="checkbox" id="discrepOnly"> Discrepancies only</label>
+    </div>
+    <div id="sheetList" class="sheet-list"></div>
+  </section>
+
+  <!-- ---------- one sheet ---------- -->
+  <section class="view" id="view-sheet" hidden>
+    <button class="btn ghost sm back" id="backToList">&larr; All sheets</button>
+    <div class="sheet-head">
+      <input class="sheet-title" id="sheetTitle" placeholder="Sheet title">
+      <div class="sheet-meta">
+        <label>PO #<input id="sheetPo" inputmode="numeric" placeholder="45032"></label>
+        <label>Vendor<input id="sheetVendor" placeholder="optional"></label>
+        <label>Status
+          <select id="sheetStatus">
+            <option value="counting">Counting</option>
+            <option value="submitted">Submitted</option>
+            <option value="closed">Closed</option>
+          </select>
+        </label>
+        <label>Adjustment #<input id="sheetAdj" placeholder="e.g. 34450"></label>
+      </div>
+    </div>
+
+    <div class="totals" id="sheetTotals"></div>
+
+    <div id="groups"></div>
+
+    <div class="add-group">
+      <div class="ac-wrap">
+        <input id="skuInput" placeholder="Type a style or SKU &mdash; e.g. AC6776-Fuchsia" autocomplete="off">
+        <div class="ac-list" id="acList" hidden></div>
+      </div>
+      <button class="btn" id="addGroupBtn">Add style-color</button>
+    </div>
+
+    <div class="sheet-foot">
+      <div class="panel">
+        <h3>Email draft</h3>
+        <p class="muted sm">Generated from the counts below. Review before sending &mdash; goes to Tristan, copy to you.</p>
+        <div class="email-actions">
+          <button class="btn primary" id="genEmailBtn">Build draft</button>
+          <button class="btn" id="copyEmailBtn" hidden>Copy</button>
+        </div>
+        <div id="emailOut" hidden>
+          <label class="lbl">Subject</label>
+          <div class="email-subject" id="emailSubject"></div>
+          <label class="lbl">Body</label>
+          <pre class="email-body" id="emailBody"></pre>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h3>Comments</h3>
+        <div id="commentList" class="comment-list"></div>
+        <form id="commentForm" class="comment-form">
+          <textarea id="commentBody" rows="2" placeholder="Add a comment&hellip;"></textarea>
+          <button class="btn sm primary" type="submit">Post</button>
+        </form>
+      </div>
+
+      <div class="panel">
+        <h3>Change log</h3>
+        <p class="muted sm">Nothing locks &mdash; every edit is recorded here.</p>
+        <div id="auditList" class="audit-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- procedure doc ---------- -->
+  <section class="view" id="view-procedure" hidden>
+    <div class="view-head">
+      <div>
+        <h2 id="docTitle">Truck Receiving Procedure</h2>
+        <p class="muted" id="docMeta"></p>
+      </div>
+      <button class="btn admin-only" id="editDocBtn" hidden>Edit</button>
+    </div>
+    <div id="docView" class="doc"></div>
+    <div id="docEdit" hidden>
+      <p class="muted sm">One step per block. Markdown-ish: <code>**bold**</code> works in body text.</p>
+      <div id="docSteps"></div>
+      <div class="doc-edit-actions">
+        <button class="btn" id="docAddStep">+ Add step</button>
+        <button class="btn primary" id="docSave">Save document</button>
+        <button class="btn ghost" id="docCancel">Cancel</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ---------- admin ---------- -->
+  <section class="view" id="view-admin" hidden>
+    <div class="view-head"><h2>Admin</h2></div>
+    <div class="panel">
+      <h3>Invite a teammate</h3>
+      <p class="muted sm">They sign in with the same email and password as the Hub. Un-invited emails get no access.</p>
+      <form id="inviteForm" class="inline-form">
+        <input type="email" id="inviteEmail" placeholder="name@justforkix.com" required>
+        <input type="text" id="inviteName" placeholder="Name">
+        <label class="check"><input type="checkbox" id="inviteAdmin"> Admin</label>
+        <button class="btn primary sm" type="submit">Invite</button>
+      </form>
+      <div id="inviteList" class="invite-list"></div>
+    </div>
+    <div class="panel">
+      <h3>Catalog</h3>
+      <p class="muted sm" id="catalogStat">&nbsp;</p>
+      <p class="muted sm">Refreshed by <code>python3 tools/sync_catalog.py</code> on Karley's Mac (it needs NetSuite access, so it can't run from the browser).</p>
+    </div>
+    <div class="panel">
+      <h3>Size labels</h3>
+      <p class="muted sm">NetSuite stores tokens like <code>XXL</code> and <code>A4XL</code>. Add an alias to show something else in emails and on sheets. Leave empty to use the real token.</p>
+      <form id="sizeForm" class="inline-form">
+        <input type="text" id="sizeNs" placeholder="XXL" required>
+        <input type="text" id="sizeLabel" placeholder="2XL" required>
+        <button class="btn primary sm" type="submit">Add alias</button>
+      </form>
+      <div id="sizeList" class="invite-list"></div>
+    </div>
+  </section>
+
+  <p class="version" id="version"></p>
+</div>
+
+<div class="toast" id="toast" hidden></div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

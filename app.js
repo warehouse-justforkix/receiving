@@ -1,0 +1,786 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from "./config.js";
+
+const VERSION = "v1";
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const $  = (id) => document.getElementById(id);
+const el = (t, c, txt) => { const n = document.createElement(t); if (c) n.className = c; if (txt != null) n.textContent = txt; return n; };
+const esc = (s) => String(s ?? "").replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[m]));
+
+let me = null, isAdmin = false, sheets = [], sheet = null, groups = [], lines = [], boxes = [];
+let sizeAliases = {}, settings = {}, signupMode = false, acMatches = [], acSel = -1;
+
+/* ---------------- utilities ---------------- */
+function toast(msg) {
+  const t = $("toast"); t.textContent = msg; t.hidden = false;
+  clearTimeout(toast._t); toast._t = setTimeout(() => { t.hidden = true; }, 2600);
+}
+function when(ts) {
+  const d = new Date(ts), now = new Date();
+  const sameDay = d.toDateString() === now.toDateString();
+  return sameDay
+    ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : d.toLocaleDateString([], { month: "short", day: "numeric" }) + " " +
+      d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+const sizeLabel = (s) => sizeAliases[s] || s;
+async function fail(where, error) { console.error(where, error); toast(error?.message ? `${where}: ${error.message}` : `${where} failed`); }
+
+/* ---------------- auth ---------------- */
+$("signupToggle").addEventListener("click", () => {
+  signupMode = !signupMode;
+  $("authBtn").textContent = signupMode ? "Create account" : "Sign in";
+  $("signupToggle").textContent = signupMode ? "Already have an account? Sign in" : "First time here? Create your account";
+  $("authErr").hidden = true;
+});
+
+$("authForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = $("authEmail").value.trim().toLowerCase(), password = $("authPass").value;
+  $("authBtn").disabled = true; $("authErr").hidden = true;
+  const { error } = signupMode
+    ? await sb.auth.signUp({ email, password })
+    : await sb.auth.signInWithPassword({ email, password });
+  $("authBtn").disabled = false;
+  if (error) { $("authErr").textContent = error.message; $("authErr").hidden = false; return; }
+  boot();
+});
+
+$("signOut").addEventListener("click", async () => { await sb.auth.signOut(); location.reload(); });
+
+async function boot() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { $("authGate").hidden = false; $("app").hidden = true; return; }
+
+  // promote an invited email into a person row on first sign-in
+  await sb.rpc("recv_handle_login");
+
+  const { data: person, error } = await sb
+    .from("recv_people").select("*").eq("auth_user_id", session.user.id).maybeSingle();
+  if (error) return fail("Loading profile", error);
+  if (!person) {
+    $("authErr").textContent = "That email hasn't been invited to Receiving yet. Ask Karley to add it in Admin.";
+    $("authErr").hidden = false;
+    await sb.auth.signOut();
+    $("authGate").hidden = false; $("app").hidden = true;
+    return;
+  }
+  me = person; isAdmin = !!person.is_admin;
+
+  $("authGate").hidden = true; $("app").hidden = false;
+  $("whoName").textContent = person.name + (isAdmin ? " · admin" : "");
+  $("version").textContent = `JFK Receiving ${VERSION}`;
+  document.querySelectorAll(".admin-only").forEach((n) => { n.hidden = !isAdmin; });
+
+  await Promise.all([loadSizeAliases(), loadSettings()]);
+  await loadSheets();
+  await loadDoc();
+  if (isAdmin) loadAdmin();
+}
+
+async function loadSizeAliases() {
+  const { data } = await sb.from("recv_size_labels").select("*");
+  sizeAliases = {}; (data || []).forEach((r) => { sizeAliases[r.ns_size] = r.display_label; });
+}
+async function loadSettings() {
+  const { data } = await sb.from("recv_settings").select("*");
+  settings = {}; (data || []).forEach((r) => { settings[r.key] = r.value; });
+}
+
+/* ---------------- view switching ---------------- */
+$("tabs").addEventListener("click", (e) => {
+  const b = e.target.closest(".tab"); if (!b) return;
+  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t === b));
+  show(b.dataset.view);
+});
+function show(v) {
+  ["sheets", "sheet", "procedure", "admin"].forEach((k) => { $("view-" + k).hidden = k !== v; });
+}
+$("backToList").addEventListener("click", () => {
+  show("sheets");
+  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === "sheets"));
+  loadSheets();
+});
+
+/* ---------------- sheet list ---------------- */
+async function loadSheets() {
+  const { data, error } = await sb
+    .from("recv_sheets")
+    .select("*, recv_sheet_lines(po_qty,counted_qty), recv_sheet_groups(style_color)")
+    .order("created_at", { ascending: false });
+  if (error) return fail("Loading sheets", error);
+  sheets = data || [];
+  renderSheets();
+}
+
+function sheetStats(s) {
+  const ls = s.recv_sheet_lines || [];
+  let off = 0, counted = 0, po = 0, withPo = 0;
+  ls.forEach((l) => {
+    counted += l.counted_qty || 0;
+    if (l.po_qty != null) { po += l.po_qty; withPo++; if ((l.counted_qty || 0) !== l.po_qty) off++; }
+  });
+  return { lines: ls.length, off, counted, po, withPo };
+}
+
+function renderSheets() {
+  const q = $("sheetSearch").value.trim().toLowerCase();
+  const st = $("statusFilter").value;
+  const only = $("discrepOnly").checked;
+  const box = $("sheetList"); box.textContent = "";
+
+  const rows = sheets.filter((s) => {
+    const stats = sheetStats(s);
+    if (st && s.status !== st) return false;
+    if (only && stats.off === 0) return false;
+    if (!q) return true;
+    const hay = [s.title, s.po_number, s.vendor, ...(s.recv_sheet_groups || []).map((g) => g.style_color)]
+      .join(" ").toLowerCase();
+    return hay.includes(q);
+  });
+
+  const totalOff = sheets.reduce((n, s) => n + (sheetStats(s).off > 0 ? 1 : 0), 0);
+  $("sheetsSummary").textContent =
+    `${sheets.length} sheet${sheets.length === 1 ? "" : "s"} · ${totalOff} with discrepancies`;
+
+  if (!rows.length) {
+    box.append(el("div", "empty-state", sheets.length ? "No sheets match those filters." : "No count sheets yet. Start one when a truck arrives."));
+    return;
+  }
+
+  rows.forEach((s) => {
+    const stats = sheetStats(s);
+    const cls = stats.withPo === 0 ? "empty" : stats.off > 0 ? "off" : "ok";
+    const row = el("button", `sheet-row ${cls}`);
+    row.type = "button";
+    const h = el("h3", null, s.title || "(untitled)");
+    const sub = el("p", "sub");
+    sub.textContent = `PO# ${s.po_number || "—"}` +
+      (s.vendor ? ` · ${s.vendor}` : "") +
+      ` · ${(s.recv_sheet_groups || []).length} style-color · ${when(s.created_at)}`;
+    const tally = el("div", "tally");
+    tally.append(el("span", `pill ${s.status}`, s.status));
+    const n = el("p", "sub");
+    n.textContent = stats.withPo === 0 ? "no PO qty yet"
+      : stats.off > 0 ? `${stats.off} off` : "all matched";
+    tally.append(n);
+    row.append(h, sub, tally);
+    row.addEventListener("click", () => openSheet(s.id));
+    box.append(row);
+  });
+}
+["sheetSearch", "statusFilter", "discrepOnly"].forEach((id) =>
+  $(id).addEventListener("input", renderSheets));
+
+/* ---------------- new sheet ---------------- */
+$("newSheetBtn").addEventListener("click", async () => {
+  const po = prompt("PO number for this sheet?");
+  if (po === null) return;
+  const today = new Date().toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
+  const { data, error } = await sb.from("recv_sheets")
+    .insert({ title: `PO ${po.trim() || "—"} · ${today}`, po_number: po.trim(), created_by: me.id })
+    .select().single();
+  if (error) return fail("Creating sheet", error);
+  await loadSheets();
+  openSheet(data.id);
+});
+
+/* ---------------- open one sheet ---------------- */
+async function openSheet(id) {
+  const [{ data: s, error: e1 }, { data: g }, { data: l }] = await Promise.all([
+    sb.from("recv_sheets").select("*").eq("id", id).single(),
+    sb.from("recv_sheet_groups").select("*").eq("sheet_id", id).order("sort_order"),
+    sb.from("recv_sheet_lines").select("*").eq("sheet_id", id).order("sort_order"),
+  ]);
+  if (e1) return fail("Opening sheet", e1);
+  sheet = s; groups = g || []; lines = l || [];
+  const ids = lines.map((x) => x.id);
+  boxes = [];
+  if (ids.length) {
+    const { data: b } = await sb.from("recv_line_boxes").select("*").in("line_id", ids).order("box_no");
+    boxes = b || [];
+  }
+  $("sheetTitle").value = s.title || "";
+  $("sheetPo").value = s.po_number || "";
+  $("sheetVendor").value = s.vendor || "";
+  $("sheetStatus").value = s.status;
+  $("sheetAdj").value = s.adjustment_number || "";
+  $("emailOut").hidden = true; $("copyEmailBtn").hidden = true;
+  renderGroups(); renderTotals(); loadComments(); loadAudit();
+  show("sheet");
+}
+
+/* save sheet header fields on change */
+[["sheetTitle", "title"], ["sheetPo", "po_number"], ["sheetVendor", "vendor"],
+ ["sheetStatus", "status"], ["sheetAdj", "adjustment_number"]].forEach(([id, col]) => {
+  $(id).addEventListener("change", async () => {
+    const v = $(id).value.trim();
+    const patch = { [col]: v || null, updated_at: new Date().toISOString() };
+    if (col === "status") {
+      patch.submitted_at = v === "submitted" ? new Date().toISOString() : sheet.submitted_at;
+      patch.closed_at    = v === "closed"    ? new Date().toISOString() : sheet.closed_at;
+    }
+    const { error } = await sb.from("recv_sheets").update(patch).eq("id", sheet.id);
+    if (error) return fail("Saving", error);
+    Object.assign(sheet, patch);
+    toast("Saved");
+  });
+});
+
+function renderTotals() {
+  const withPo = lines.filter((l) => l.po_qty != null);
+  const off = withPo.filter((l) => (l.counted_qty || 0) !== l.po_qty);
+  const counted = lines.reduce((n, l) => n + (l.counted_qty || 0), 0);
+  const po = withPo.reduce((n, l) => n + l.po_qty, 0);
+  const box = $("sheetTotals"); box.textContent = "";
+  const tile = (k, v, cls) => { const t = el("div", "tile" + (cls ? " " + cls : "")); t.append(el("p", "k", k), el("p", "v", String(v))); return t; };
+  box.append(
+    tile("Sizes", lines.length),
+    tile("Counted", counted),
+    tile("PO qty", withPo.length ? po : "—"),
+    tile("Off", off.length, off.length ? "off" : "ok"),
+  );
+}
+
+function renderGroups() {
+  const wrap = $("groups"); wrap.textContent = "";
+  if (!groups.length) {
+    wrap.append(el("div", "empty-state", "No styles on this sheet yet. Add one below."));
+    return;
+  }
+  groups.forEach((g) => {
+    const gl = lines.filter((l) => l.group_id === g.id);
+    const off = gl.filter((l) => l.po_qty != null && (l.counted_qty || 0) !== l.po_qty).length;
+    const card = el("div", "group");
+    const head = el("div", "group-head");
+    const left = el("div");
+    left.append(el("h3", null, g.style_color));
+    left.append(el("p", "st", `${gl.length} size${gl.length === 1 ? "" : "s"}` + (off ? ` · ${off} off` : "")));
+    const del = el("button", "btn ghost sm", "Remove");
+    del.addEventListener("click", async () => {
+      if (!confirm(`Remove ${g.style_color} and its counts from this sheet?`)) return;
+      const { error } = await sb.from("recv_sheet_groups").delete().eq("id", g.id);
+      if (error) return fail("Removing style", error);
+      openSheet(sheet.id);
+    });
+    head.append(left, del);
+    card.append(head);
+    gl.forEach((l) => card.append(renderLine(l)));
+    wrap.append(card);
+  });
+}
+
+function renderLine(l) {
+  const row = el("div", "line");
+  const top = el("div", "line-top");
+  top.append(el("p", "size-tag", sizeLabel(l.size)));
+
+  const nums = el("div", "line-nums");
+  nums.append(el("span", "sm", "PO"));
+  const po = el("input", "po"); po.type = "number"; po.inputMode = "numeric";
+  po.value = l.po_qty ?? ""; po.placeholder = "—";
+  po.addEventListener("change", async () => {
+    const v = po.value === "" ? null : parseInt(po.value, 10);
+    const { error } = await sb.from("recv_sheet_lines").update({ po_qty: v }).eq("id", l.id);
+    if (error) return fail("Saving PO qty", error);
+    l.po_qty = v; refreshLine(l, row); renderTotals(); loadAudit();
+  });
+  nums.append(po);
+  nums.append(el("span", "sm", "counted"));
+  nums.append(el("span", "counted", String(l.counted_qty || 0)));
+  nums.append(el("span", "var", ""));
+  top.append(nums);
+  row.append(top);
+
+  // box counts — each carton entered separately, they sum to the counted total
+  const bx = el("div", "boxes");
+  row.append(bx);
+
+  const bins = el("div", "bins");
+  [["pick_bin", "Pick bin"], ["overstock_bin", "Overstock bin"]].forEach(([col, ph]) => {
+    const i = el("input"); i.placeholder = ph; i.value = l[col] || "";
+    i.addEventListener("change", async () => {
+      const { error } = await sb.from("recv_sheet_lines").update({ [col]: i.value.trim() || null }).eq("id", l.id);
+      if (error) return fail("Saving bin", error);
+      l[col] = i.value.trim() || null; loadAudit();
+    });
+    bins.append(i);
+  });
+  row.append(bins);
+
+  drawBoxes(l, bx, row);
+  refreshLine(l, row);
+  return row;
+}
+
+function drawBoxes(l, bx, row) {
+  bx.textContent = "";
+  const mine = boxes.filter((b) => b.line_id === l.id).sort((a, b) => a.box_no - b.box_no);
+  mine.forEach((b) => {
+    const w = el("div", "box-wrap");
+    w.append(el("span", "bn", "Box " + b.box_no));
+    const i = el("input", "box-in"); i.type = "number"; i.inputMode = "numeric"; i.value = b.qty;
+    i.addEventListener("change", async () => {
+      const v = i.value === "" ? 0 : parseInt(i.value, 10);
+      const { error } = await sb.from("recv_line_boxes").update({ qty: v }).eq("id", b.id);
+      if (error) return fail("Saving box", error);
+      b.qty = v; await recount(l, row, bx);
+    });
+    const rm = el("button", "linkish sm", "×");
+    rm.title = "Remove this box";
+    rm.addEventListener("click", async () => {
+      const { error } = await sb.from("recv_line_boxes").delete().eq("id", b.id);
+      if (error) return fail("Removing box", error);
+      boxes = boxes.filter((x) => x.id !== b.id);
+      await recount(l, row, bx);
+    });
+    w.append(i, rm);
+    bx.append(w);
+  });
+  const add = el("button", "btn box-add", "+");
+  add.title = "Add another box";
+  add.addEventListener("click", async () => {
+    const next = (mine.length ? Math.max(...mine.map((b) => b.box_no)) : 0) + 1;
+    const { data, error } = await sb.from("recv_line_boxes")
+      .insert({ line_id: l.id, box_no: next, qty: 0, created_by: me.id }).select().single();
+    if (error) return fail("Adding box", error);
+    boxes.push(data); await recount(l, row, bx);
+  });
+  bx.append(add);
+}
+
+async function recount(l, row, bx) {
+  // the DB trigger recomputes counted_qty from the boxes; read it back
+  const { data } = await sb.from("recv_sheet_lines").select("counted_qty").eq("id", l.id).single();
+  l.counted_qty = data?.counted_qty ?? 0;
+  const idx = lines.findIndex((x) => x.id === l.id);
+  if (idx >= 0) lines[idx].counted_qty = l.counted_qty;
+  drawBoxes(l, bx, row); refreshLine(l, row); renderTotals();
+}
+
+function refreshLine(l, row) {
+  row.querySelector(".counted").textContent = String(l.counted_qty || 0);
+  const v = row.querySelector(".var");
+  if (l.po_qty == null) { v.textContent = ""; v.className = "var"; return; }
+  const d = (l.counted_qty || 0) - l.po_qty;
+  v.textContent = d === 0 ? "good" : `off by ${d > 0 ? "+" : ""}${d}`;
+  v.className = "var " + (d === 0 ? "ok" : "off");
+}
+
+/* ---------------- SKU autocomplete ---------------- */
+let acTimer = null;
+$("skuInput").addEventListener("input", () => {
+  clearTimeout(acTimer);
+  acTimer = setTimeout(runAutocomplete, 160);
+});
+$("skuInput").addEventListener("keydown", (e) => {
+  if ($("acList").hidden) return;
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    acSel = Math.max(0, Math.min(acMatches.length - 1, acSel + (e.key === "ArrowDown" ? 1 : -1)));
+    paintAc();
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    if (acSel >= 0) pickStyleColor(acMatches[acSel].style_color);
+  } else if (e.key === "Escape") { $("acList").hidden = true; }
+});
+
+async function runAutocomplete() {
+  const q = $("skuInput").value.trim();
+  const list = $("acList");
+  if (q.length < 2) { list.hidden = true; return; }
+  const { data, error } = await sb
+    .from("recv_catalog")
+    .select("style_color, style, color")
+    .ilike("style_color", `%${q}%`)
+    .limit(400);
+  if (error) { fail("Searching catalog", error); return; }
+  const seen = new Map();
+  (data || []).forEach((r) => {
+    if (!seen.has(r.style_color)) seen.set(r.style_color, { ...r, n: 0 });
+    seen.get(r.style_color).n++;
+  });
+  acMatches = [...seen.values()]
+    .sort((a, b) => a.style_color.localeCompare(b.style_color))
+    .slice(0, 40);
+  acSel = acMatches.length ? 0 : -1;
+  paintAc();
+}
+
+function paintAc() {
+  const list = $("acList"); list.textContent = ""; list.hidden = false;
+  if (!acMatches.length) {
+    list.append(el("div", "ac-empty", "No match in the catalog. You can still add it by typing the full style-color and pressing Add."));
+    return;
+  }
+  acMatches.forEach((m, i) => {
+    const b = el("button", "ac-item" + (i === acSel ? " sel" : "")); b.type = "button";
+    b.append(el("b", null, m.style_color));
+    b.append(el("span", "n", `  ${m.n} size${m.n === 1 ? "" : "s"}`));
+    b.addEventListener("click", () => pickStyleColor(m.style_color));
+    list.append(b);
+  });
+}
+document.addEventListener("click", (e) => {
+  if (!e.target.closest(".ac-wrap")) $("acList").hidden = true;
+});
+
+async function pickStyleColor(sc) {
+  $("skuInput").value = sc;
+  $("acList").hidden = true;
+  await addGroup(sc);
+}
+$("addGroupBtn").addEventListener("click", () => {
+  const v = $("skuInput").value.trim();
+  if (v) addGroup(v);
+});
+
+async function addGroup(styleColor) {
+  if (!sheet) return;
+  if (groups.some((g) => g.style_color.toLowerCase() === styleColor.toLowerCase())) {
+    toast("That style-color is already on this sheet"); return;
+  }
+  const { data: cat } = await sb.from("recv_catalog")
+    .select("sku, style, color, size").eq("style_color", styleColor);
+
+  const style = cat?.[0]?.style || styleColor.split("-")[0];
+  const color = cat?.[0]?.color || styleColor.split("-").slice(1).join("-") || null;
+
+  const { data: g, error } = await sb.from("recv_sheet_groups")
+    .insert({ sheet_id: sheet.id, style, color, style_color: styleColor, sort_order: groups.length })
+    .select().single();
+  if (error) return fail("Adding style", error);
+
+  let sizes = (cat || []).map((c) => ({ size: c.size, sku: c.sku }));
+  if (!sizes.length) {
+    const typed = prompt(`No catalog sizes for ${styleColor}. Type the sizes separated by commas:`, "XS, S, M, L, XL");
+    if (typed === null) { await sb.from("recv_sheet_groups").delete().eq("id", g.id); return; }
+    sizes = typed.split(",").map((s) => s.trim()).filter(Boolean).map((s) => ({ size: s, sku: `${styleColor}-${s}` }));
+  }
+  sizes.sort((a, b) => sizeRank(a.size) - sizeRank(b.size) || a.size.localeCompare(b.size));
+
+  const rows = sizes.map((s, i) => ({
+    sheet_id: sheet.id, group_id: g.id, sku: s.sku, size: s.size, sort_order: i,
+  }));
+  const { error: e2 } = await sb.from("recv_sheet_lines").insert(rows);
+  if (e2) return fail("Adding sizes", e2);
+  $("skuInput").value = "";
+  openSheet(sheet.id);
+}
+
+/* Rough size ordering so a sheet reads youth -> adult like the paper one. */
+const SIZE_ORDER = ["YXS","YXXS","YS","YM","YL","YXL","Y4","Y6","Y8","Y10","Y12","Y14","Y16",
+  "XXS","XS","AXS","S","AS","S/M","M","AM","L","AL","L/XL","XL","AXL","XXL","A2XL","2XL",
+  "XXXL","A3XL","3XL","A4XL","4XL","4XLT","5XL","A5XL","OS","OSFA","OSFM","1SZ","Adjustable"];
+function sizeRank(s) {
+  const i = SIZE_ORDER.indexOf(String(s).toUpperCase());
+  if (i >= 0) return i;
+  const j = SIZE_ORDER.indexOf(String(s));
+  if (j >= 0) return j;
+  const num = parseFloat(s);
+  return Number.isFinite(num) ? 500 + num : 900;
+}
+
+/* ---------------- email draft ---------------- */
+/* Pure formatter so the wording can be unit-tested against Karley's two
+   reference emails. blocks = [{styleColor, rows:[{size,counted,po,d}]}] */
+export function composeEmail({ po, adj, greeting = "Hi Tristan,", blocks }) {
+  const offRows = blocks.flatMap((b) => b.rows.filter((r) => r.d !== 0));
+  const text = [], html = [];
+  let subject;
+
+  if (adj && offRows.length) {
+    // ---- Example 2: an inventory adjustment was made ----
+    subject = `PO ${po}`;
+    if (offRows.length === 1) {
+      const o = offRows[0];
+      const dir = o.d < 0 ? "subtracting" : "adding";
+      const line = `On PO ${po} we received all items in full but we were off by ${Math.abs(o.d)} in size ${o.size}. ` +
+        `We counted ${o.counted}, the PO listed ${o.po} purchased, count was off ${o.d}. ` +
+        `We did an inventory adjustment ${dir} ${Math.abs(o.d)} for the difference. ` +
+        `Inventory Adjustment number is #${adj} if needed.`;
+      text.push(line); html.push(esc(line));
+    } else {
+      const head = `On PO ${po} we received all items in full but we were off in ${offRows.length} sizes:`;
+      text.push(head); html.push(esc(head));
+      offRows.forEach((r) => {
+        const l = `${r.size} counted ${r.counted}, the PO listed ${r.po} purchased, count was off ${r.d}`;
+        text.push(l); html.push("<strong>" + esc(l) + "</strong>");
+      });
+      const tail = `We did an inventory adjustment for the difference. Inventory Adjustment number is #${adj} if needed.`;
+      text.push("", tail); html.push("", esc(tail));
+    }
+    return { subject, text: text.join("\n"), html: html.join("<br>") };
+  }
+
+  // ---- Example 1: discrepancies, asking Tristan how to proceed ----
+  subject = offRows.length ? `PO# ${po} Discrepancies` : `PO# ${po} counts matched`;
+  const single = blocks.length === 1 ? blocks[0].styleColor : null;
+  text.push(greeting, ""); html.push(esc(greeting), "");
+
+  const intro = offRows.length
+    ? (single
+        ? `We are working on PO# ${po} item is ${single} and have these discrepancies.  ` +
+          `Would you like us to do an inventory adjustment or is there more stock we are missing (I assume it is the second).`
+        : `We are working on PO# ${po} and have these discrepancies.  ` +
+          `Would you like us to do an inventory adjustment or is there more stock we are missing (I assume it is the second).`)
+    : `We finished PO# ${po}` + (single ? ` (${single})` : "") + ` and every size matched the PO.`;
+  text.push(intro, "", "Here are our counts:");
+  html.push(esc(intro), "", esc("Here are our counts:"));
+
+  blocks.forEach((b) => {
+    if (!single) {
+      text.push("", b.styleColor);
+      html.push("", "<strong>" + esc(b.styleColor) + "</strong>");
+    }
+    b.rows.forEach((r) => {
+      if (r.d === 0) {
+        const l = `${r.size} was good`;
+        text.push(l); html.push(esc(l));
+      } else {
+        const l = `${r.size} counted ${r.counted} PO has ${r.po} off by ${r.d}`;
+        text.push(l); html.push("<strong>" + esc(l) + "</strong>");
+      }
+    });
+  });
+  return { subject, text: text.join("\n"), html: html.join("<br>") };
+}
+
+$("genEmailBtn").addEventListener("click", buildEmail);
+
+function buildEmail() {
+  if (!sheet) return;
+  const po  = ($("sheetPo").value  || sheet.po_number || "").trim();
+  const adj = ($("sheetAdj").value || "").trim();
+
+  const blocks = groups.map((g) => ({
+    styleColor: g.style_color,
+    rows: lines
+      .filter((l) => l.group_id === g.id && l.po_qty != null)
+      .sort((a, b) => a.sort_order - b.sort_order)
+      .map((l) => ({
+        size: sizeLabel(l.size), counted: l.counted_qty || 0,
+        po: l.po_qty, d: (l.counted_qty || 0) - l.po_qty,
+      })),
+  })).filter((b) => b.rows.length);
+
+  if (!blocks.length) { toast("Enter PO quantities first — there's nothing to compare."); return; }
+
+  const out = composeEmail({ po, adj, greeting: settings.email_greeting || "Hi Tristan,", blocks });
+  buildEmail._text = out.text; buildEmail._html = out.html; buildEmail._subject = out.subject;
+
+  $("emailSubject").textContent = out.subject;
+  $("emailBody").innerHTML = out.html;
+  $("emailOut").hidden = false;
+  $("copyEmailBtn").hidden = false;
+  if (!settings.email_to) toast("Draft built. Set the recipient in Admin before sending.");
+}
+
+$("copyEmailBtn").addEventListener("click", async () => {
+  const to = settings.email_to || "", cc = settings.email_cc || "";
+  const header = (to ? `To: ${to}\n` : "") + (cc ? `Cc: ${cc}\n` : "") +
+    `Subject: ${buildEmail._subject}\n\n`;
+  try {
+    if (navigator.clipboard?.write && window.ClipboardItem) {
+      await navigator.clipboard.write([new ClipboardItem({
+        "text/plain": new Blob([header + buildEmail._text], { type: "text/plain" }),
+        "text/html":  new Blob([buildEmail._html], { type: "text/html" }),
+      })]);
+    } else {
+      await navigator.clipboard.writeText(header + buildEmail._text);
+    }
+    toast("Draft copied — bold survives a paste into Gmail");
+  } catch (e) { fail("Copying", e); }
+});
+
+/* ---------------- comments ---------------- */
+async function loadComments() {
+  const { data, error } = await sb.from("recv_comments")
+    .select("*, recv_people(name)").eq("sheet_id", sheet.id).order("created_at");
+  if (error) return fail("Loading comments", error);
+  const box = $("commentList"); box.textContent = "";
+  if (!(data || []).length) { box.append(el("p", "muted sm", "No comments yet.")); return; }
+  data.forEach((c) => {
+    const d = el("div", "comment");
+    const h = el("p", "who", c.recv_people?.name || "someone");
+    h.append(el("span", "when", "  " + when(c.created_at)));
+    d.append(h, el("p", "body", c.body));
+    if (c.author_id === me.id || isAdmin) {
+      const rm = el("button", "linkish sm", "delete");
+      rm.addEventListener("click", async () => {
+        const { error } = await sb.from("recv_comments").delete().eq("id", c.id);
+        if (error) return fail("Deleting comment", error);
+        loadComments();
+      });
+      d.append(rm);
+    }
+    box.append(d);
+  });
+}
+$("commentForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const body = $("commentBody").value.trim(); if (!body) return;
+  const { error } = await sb.from("recv_comments")
+    .insert({ sheet_id: sheet.id, body, author_id: me.id });
+  if (error) return fail("Posting comment", error);
+  $("commentBody").value = ""; loadComments();
+});
+
+/* ---------------- change log ---------------- */
+async function loadAudit() {
+  const { data, error } = await sb.from("recv_audit")
+    .select("*, recv_people(name)").eq("sheet_id", sheet.id)
+    .order("created_at", { ascending: false }).limit(80);
+  if (error) return;
+  const box = $("auditList"); box.textContent = "";
+  if (!(data || []).length) { box.append(el("p", "muted sm", "No changes recorded yet.")); return; }
+  data.forEach((a) => {
+    const r = el("div", "audit-row");
+    r.append(el("b", null, a.recv_people?.name || "someone"));
+    r.append(el("span", null, `${a.field}: ${a.old_value ?? "—"} → ${a.new_value ?? "—"}`));
+    r.append(el("span", null, when(a.created_at)));
+    box.append(r);
+  });
+}
+
+/* ---------------- procedure document ---------------- */
+const DEFAULT_DOC = [
+  { title: "Unload the truck into receiving", body: "Bring every carton off the trailer and into the receiving area before you count anything." },
+  { title: "Sort by style number, then color, then size", body: "Break the cartons down and group like with like, in that order: all of one style number together, split by color inside the style, split by size inside the color. note: cartons can be mixed." },
+  { title: "Count every size stack and write it down", body: "Count each style + color + size stack and record the number on the count sheet as you go.", flag: "Don't look up the PO quantities until your counts are written down. If you know the number you're supposed to get, you'll find that number. Write your count first, then go to step 4.", critical: true },
+  { title: "Find the PO in NetSuite", body: "Look this up through putting the PO# on the box into the search bar on NetSuite and selecting the entry that says purchase order or if the PO# is unknown go to items view in NetSuite type in the style#-color you are looking for, once it loads click any size you are looking to receive by the view button → then go to related records and under PO search look for the most recent PO#." },
+  { title: "Match your counts to the PO#", body: "Step A — if anything is off, email Karley and Tristan with the discrepancy and wait for direction. Step B — if everything matches receive it and move to the next step." },
+  { title: "Box it, label it, shelve it — same day", body: "Everything you receive gets boxed, labeled and put on its shelf with bin location as soon as it's received. Box labels are four lines: SKU · item name · color · size → ask Karley to print these.", flag: "* if the item is existing refill boxes" },
+  { title: "Release backorders to the queue → let Karley know of any shipments received.", body: "Once the stock is received in NetSuite, the orders that were backordered against it go to the queue. Do this the same day the stock is received." },
+  { title: "Overstock goes to overstock — and gets recorded", body: "Anything that won't fit in the pick bin goes to an overstock location. Write the overstock location on the sheet, then record it in NetSuite.", flag: "Set the pick bin and overstock bin on the individual size — the child item — not on the parent style number." },
+];
+
+let docSteps = [];
+async function loadDoc() {
+  const { data } = await sb.from("recv_doc").select("*").eq("slug", "procedure").maybeSingle();
+  docSteps = data?.body?.length ? data.body : DEFAULT_DOC;
+  $("docTitle").textContent = data?.title || "Truck Receiving Procedure";
+  $("docMeta").textContent = data
+    ? `v${data.version} · updated ${when(data.updated_at)}`
+    : "Showing the default procedure — save once to store it.";
+  renderDoc();
+}
+function renderDoc() {
+  const box = $("docView"); box.textContent = "";
+  docSteps.forEach((s, i) => {
+    const d = el("div", "doc-step");
+    d.append(el("p", "n", String(i + 1)));
+    const c = el("div");
+    c.append(el("h3", null, s.title || ""));
+    const p = el("p"); p.innerHTML = esc(s.body || "").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    c.append(p);
+    if (s.flag) c.append(el("span", "flag" + (s.critical ? " critical" : ""), s.flag));
+    d.append(c); box.append(d);
+  });
+}
+$("editDocBtn").addEventListener("click", () => {
+  $("docView").hidden = true; $("docEdit").hidden = false; $("editDocBtn").hidden = true;
+  paintDocEditor();
+});
+$("docCancel").addEventListener("click", () => {
+  $("docView").hidden = false; $("docEdit").hidden = true; $("editDocBtn").hidden = false;
+  loadDoc();
+});
+function paintDocEditor() {
+  const box = $("docSteps"); box.textContent = "";
+  docSteps.forEach((s, i) => {
+    const r = el("div", "doc-edit-row");
+    const t = el("input"); t.value = s.title || ""; t.placeholder = "Step title";
+    t.addEventListener("input", () => { docSteps[i].title = t.value; });
+    const b = el("textarea"); b.rows = 3; b.value = s.body || ""; b.placeholder = "Step body";
+    b.addEventListener("input", () => { docSteps[i].body = b.value; });
+    const f = el("input"); f.value = s.flag || ""; f.placeholder = "Callout box (optional)";
+    f.addEventListener("input", () => { docSteps[i].flag = f.value; });
+    const bar = el("div", "email-actions");
+    const crit = el("label", "check");
+    const cb = el("input"); cb.type = "checkbox"; cb.checked = !!s.critical;
+    cb.addEventListener("change", () => { docSteps[i].critical = cb.checked; });
+    crit.append(cb, document.createTextNode(" Highlight callout in pink"));
+    const rm = el("button", "btn ghost sm danger", "Delete step");
+    rm.addEventListener("click", () => { docSteps.splice(i, 1); paintDocEditor(); });
+    bar.append(crit, rm);
+    r.append(t, b, f, bar); box.append(r);
+  });
+}
+$("docAddStep").addEventListener("click", () => { docSteps.push({ title: "", body: "" }); paintDocEditor(); });
+$("docSave").addEventListener("click", async () => {
+  const { data: cur } = await sb.from("recv_doc").select("version").eq("slug", "procedure").maybeSingle();
+  const { error } = await sb.from("recv_doc").upsert({
+    slug: "procedure", title: $("docTitle").textContent,
+    body: docSteps, version: (cur?.version || 0) + 1,
+    updated_by: me.id, updated_at: new Date().toISOString(),
+  }, { onConflict: "slug" });
+  if (error) return fail("Saving document", error);
+  toast("Document saved");
+  $("docView").hidden = false; $("docEdit").hidden = true; $("editDocBtn").hidden = false;
+  loadDoc();
+});
+
+/* ---------------- admin ---------------- */
+async function loadAdmin() {
+  const [{ data: inv }, { data: cat }, { data: sz }] = await Promise.all([
+    sb.from("recv_invited_emails").select("*").order("email"),
+    sb.from("recv_catalog").select("sku", { count: "exact", head: true }),
+    sb.from("recv_size_labels").select("*").order("ns_size"),
+  ]);
+  const box = $("inviteList"); box.textContent = "";
+  (inv || []).forEach((r) => {
+    const d = el("div", "invite-row");
+    d.append(el("span", null, `${r.email}${r.name ? " · " + r.name : ""}${r.is_admin ? " · admin" : ""}`));
+    const rm = el("button", "linkish sm", "remove");
+    rm.addEventListener("click", async () => {
+      if (!confirm(`Remove the invite for ${r.email}?`)) return;
+      const { error } = await sb.from("recv_invited_emails").delete().eq("email", r.email);
+      if (error) return fail("Removing invite", error);
+      loadAdmin();
+    });
+    d.append(rm); box.append(d);
+  });
+
+  const { count } = await sb.from("recv_catalog").select("*", { count: "exact", head: true });
+  $("catalogStat").textContent = count
+    ? `${count.toLocaleString()} SKUs available for autocomplete.`
+    : "Catalog is empty — run the sync so SKU autocomplete works.";
+
+  const sbox = $("sizeList"); sbox.textContent = "";
+  (sz || []).forEach((r) => {
+    const d = el("div", "invite-row");
+    d.append(el("span", null, `${r.ns_size} → ${r.display_label}`));
+    const rm = el("button", "linkish sm", "remove");
+    rm.addEventListener("click", async () => {
+      const { error } = await sb.from("recv_size_labels").delete().eq("ns_size", r.ns_size);
+      if (error) return fail("Removing alias", error);
+      await loadSizeAliases(); loadAdmin();
+    });
+    d.append(rm); sbox.append(d);
+  });
+}
+
+$("inviteForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const email = $("inviteEmail").value.trim().toLowerCase();
+  const { error } = await sb.from("recv_invited_emails").insert({
+    email, name: $("inviteName").value.trim() || null, is_admin: $("inviteAdmin").checked,
+  });
+  if (error) return fail("Inviting", error);
+  $("inviteEmail").value = ""; $("inviteName").value = ""; $("inviteAdmin").checked = false;
+  toast("Invited — they sign in with their Hub password");
+  loadAdmin();
+});
+
+$("sizeForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const { error } = await sb.from("recv_size_labels").upsert({
+    ns_size: $("sizeNs").value.trim(), display_label: $("sizeLabel").value.trim(),
+  }, { onConflict: "ns_size" });
+  if (error) return fail("Saving alias", error);
+  $("sizeNs").value = ""; $("sizeLabel").value = "";
+  await loadSizeAliases(); loadAdmin();
+});
+
+boot();

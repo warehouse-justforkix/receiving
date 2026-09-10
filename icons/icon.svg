@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <title>JFK Receiving</title>
+  <g stroke="#000" stroke-width="9" stroke-linejoin="round" stroke-linecap="round">
+
+    <!-- ===== warehouse ===== -->
+    <!-- roof slab -->
+    <path d="M6 46 L96 12 L186 46 L186 66 L96 32 L6 66 Z" fill="#6d6069"/>
+    <!-- roof vent -->
+    <rect x="72" y="36" width="48" height="13" rx="6" fill="#67e0a8"/>
+    <!-- building shell -->
+    <path d="M14 62 L14 186 L34 186 L34 78 L158 78 L158 186 L178 186 L178 62" fill="#6d6069"/>
+
+    <!-- boxes: upper-left single -->
+    <rect x="34" y="86" width="46" height="44" fill="#dfa96d"/>
+    <path d="M50 86 L50 100 L64 100 L64 86" fill="#f0c69b"/>
+
+    <!-- boxes: middle row of two -->
+    <rect x="34" y="130" width="46" height="44" fill="#dfa96d"/>
+    <path d="M50 130 L50 144 L64 144 L64 130" fill="#f0c69b"/>
+    <rect x="80" y="130" width="46" height="44" fill="#dfa96d"/>
+    <path d="M96 130 L96 144 L110 144 L110 130" fill="#f0c69b"/>
+
+    <!-- box: right of the top one -->
+    <rect x="80" y="100" width="46" height="30" fill="#dfa96d"/>
+    <path d="M96 100 L96 112 L110 112 L110 100" fill="#f0c69b"/>
+
+    <!-- floor line -->
+    <path d="M14 186 L178 186" fill="none"/>
+
+    <!-- ===== clipboard (overlaps the warehouse) ===== -->
+    <rect x="116" y="82" width="134" height="164" rx="14" fill="#0d0d0d"/>
+    <rect x="127" y="93" width="112" height="142" rx="6" fill="#eceff1"/>
+    <!-- clip -->
+    <path d="M150 76 h66 a8 8 0 0 1 8 8 v14 h-82 v-14 a8 8 0 0 1 8 -8 z" fill="#dfa96d"/>
+    <circle cx="183" cy="72" r="8" fill="#dfa96d"/>
+
+    <!-- checklist rows -->
+    <rect x="140" y="118" width="20" height="20" rx="4" fill="#67e0a8"/>
+    <path d="M172 128 h54" fill="none" stroke-width="11"/>
+
+    <path d="M140 152 h86" fill="none" stroke-width="11"/>
+
+    <rect x="140" y="166" width="20" height="20" rx="4" fill="#ffd94a"/>
+    <path d="M172 176 h54" fill="none" stroke-width="11"/>
+
+    <rect x="140" y="196" width="20" height="20" rx="4" fill="#f4636e"/>
+    <path d="M172 206 h54" fill="none" stroke-width="11"/>
+  </g>
+</svg>
