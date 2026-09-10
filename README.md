@@ -24,6 +24,8 @@ see any data.
 - **Comments and a change log** — nothing locks; every count, PO qty and bin edit
   is recorded with who changed it and when.
 - **The procedure** — the 8-step instructional sheet, editable in-app by admins.
+- **Notifications** — per-device web push, same VAPID sender as the Hub, for new
+  comments and submitted sheets.
 
 ## Stack
 
@@ -52,6 +54,22 @@ python3 tools/sync_catalog.py --dry-run  # parse and report, write nothing
    `tools/.env` (gitignored) with either `SUPABASE_SERVICE_KEY=...` or
    `RECV_ADMIN_EMAIL` + `RECV_ADMIN_PASSWORD` + `SUPABASE_ANON_KEY`.
    It has to run on Karley's Mac — NetSuite isn't reachable from the browser.
+
+5. **Notifications** — each person taps "Turn on" on the banner (or Admin →
+   Notifications) once per device. Sending needs the edge function deployed:
+
+```sh
+supabase functions deploy recv-push
+```
+
+   It reuses the Hub's existing `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` /
+   `PUSH_TRIGGER_SECRET` secrets — nothing new to set. Then add a Supabase
+   **Database Webhook** on `insert` into `recv_comments` (and `update` on
+   `recv_sheets`) pointing at the function, with header
+   `x-push-secret: <PUSH_TRIGGER_SECRET>`.
+
+   iPhone note: iOS only allows web push once the site is added to the home
+   screen, so install it from Safari's Share sheet first.
 
 ## Tests
 

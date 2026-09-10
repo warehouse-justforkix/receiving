@@ -242,6 +242,16 @@ label.check input { width:20px; height:20px; min-height:0; }
 
 .version { text-align:center; color:var(--faint); font-size:11px; margin:26px 0 0; }
 
+/* ---------- notification banner ---------- */
+.notif-banner {
+  display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
+  background:var(--pinkwash); border:1.5px solid var(--pink); border-radius:var(--r);
+  padding:12px 14px; margin-bottom:14px;
+}
+.notif-banner strong { font-family:var(--display); font-size:14px; }
+.notif-banner p { margin:2px 0 0; color:var(--slate); }
+.notif-actions { display:flex; gap:8px; }
+
 /* ---------- toast ---------- */
 .toast {
   position:fixed; left:50%; bottom:22px; transform:translateX(-50%);

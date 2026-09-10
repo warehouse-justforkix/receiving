@@ -211,6 +211,16 @@ drop trigger if exists recv_lines_audit on recv_sheet_lines;
 create trigger recv_lines_audit after update on recv_sheet_lines
   for each row execute function public.recv_log_line_change();
 
+-- ---------- push notification subscriptions ----------
+create table if not exists recv_push_subscriptions (
+  id           uuid primary key default gen_random_uuid(),
+  person_id    uuid not null references recv_people(id) on delete cascade,
+  endpoint     text unique not null,
+  subscription jsonb not null,
+  created_at   timestamptz not null default now()
+);
+create index if not exists recv_push_person_idx on recv_push_subscriptions (person_id);
+
 -- ---------- settings (email recipients etc., admin-editable) ----------
 create table if not exists recv_settings (
   key        text primary key,
@@ -243,6 +253,7 @@ alter table recv_comments       enable row level security;
 alter table recv_audit          enable row level security;
 alter table recv_doc            enable row level security;
 alter table recv_settings       enable row level security;
+alter table recv_push_subscriptions enable row level security;
 
 -- invites: you can see your own; admins manage
 drop policy if exists recv_inv_read   on recv_invited_emails;
@@ -331,6 +342,12 @@ create policy recv_set_read on recv_settings for select to authenticated using (
 drop policy if exists recv_set_write on recv_settings;
 create policy recv_set_write on recv_settings for all to authenticated
   using (public.recv_is_admin()) with check (public.recv_is_admin());
+
+-- push subscriptions: you manage your own devices; admins can clean up
+drop policy if exists recv_push_own on recv_push_subscriptions;
+create policy recv_push_own on recv_push_subscriptions for all to authenticated
+  using (person_id = public.recv_me() or public.recv_is_admin())
+  with check (person_id = public.recv_me() or public.recv_is_admin());
 
 -- ---------- seed ----------
 insert into recv_invited_emails (email, name, is_admin)

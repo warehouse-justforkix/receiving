@@ -48,6 +48,17 @@
     </div>
   </header>
 
+  <div class="notif-banner" id="notifBanner" hidden>
+    <div>
+      <strong>Turn on notifications</strong>
+      <p class="sm">Get a nudge on this device when someone comments on a sheet or flags a discrepancy.</p>
+    </div>
+    <div class="notif-actions">
+      <button class="btn primary sm" id="notifOn">Turn on</button>
+      <button class="btn ghost sm" id="notifNo">Not now</button>
+    </div>
+  </div>
+
   <!-- ---------- sheet list ---------- -->
   <section class="view" id="view-sheets">
     <div class="view-head">
@@ -173,6 +184,17 @@
       <h3>Catalog</h3>
       <p class="muted sm" id="catalogStat">&nbsp;</p>
       <p class="muted sm">Refreshed by <code>python3 tools/sync_catalog.py</code> on Karley's Mac (it needs NetSuite access, so it can't run from the browser).</p>
+    </div>
+    <div class="panel">
+      <h3>Email &amp; notifications</h3>
+      <p class="muted sm">Discrepancy drafts are addressed to this person, copied to you.</p>
+      <form id="emailForm" class="inline-form">
+        <input type="email" id="setTo" placeholder="Send to (required)">
+        <input type="email" id="setCc" placeholder="Copy to">
+        <button class="btn primary sm" type="submit">Save</button>
+      </form>
+      <p class="muted sm" id="notifStatus">&nbsp;</p>
+      <button class="btn sm" id="notifManage">Notifications on this device</button>
     </div>
     <div class="panel">
       <h3>Size labels</h3>

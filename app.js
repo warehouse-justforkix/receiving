@@ -76,6 +76,7 @@ async function boot() {
   await loadSheets();
   await loadDoc();
   if (isAdmin) loadAdmin();
+  maybeShowNotifBanner();
 }
 
 async function loadSizeAliases() {
@@ -747,6 +748,10 @@ async function loadAdmin() {
     ? `${count.toLocaleString()} SKUs available for autocomplete.`
     : "Catalog is empty — run the sync so SKU autocomplete works.";
 
+  $("setTo").value = settings.email_to || "";
+  $("setCc").value = settings.email_cc || "";
+  refreshNotifStatus();
+
   const sbox = $("sizeList"); sbox.textContent = "";
   (sz || []).forEach((r) => {
     const d = el("div", "invite-row");
@@ -781,6 +786,123 @@ $("sizeForm").addEventListener("submit", async (e) => {
   if (error) return fail("Saving alias", error);
   $("sizeNs").value = ""; $("sizeLabel").value = "";
   await loadSizeAliases(); loadAdmin();
+});
+
+/* ---------------- push notifications ---------------- */
+/* Same VAPID sender as the Warehouse Hub, so one key pair covers both apps. */
+const VAPID_PUBLIC_KEY = "BDi981JGUQQj-XjQ61ONOw7Mq2T2m3KIJKJN2G_tgtwBYyAyF57sPxTvC_OwWZrWOzmszV5tJPXATI5zGDNFHd0";
+
+function urlB64ToUint8Array(b64) {
+  const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from([...raw].map((c) => c.charCodeAt(0)));
+}
+
+function pushSupported() {
+  return "Notification" in window && "serviceWorker" in navigator && "PushManager" in window;
+}
+
+async function currentSubscription() {
+  if (!pushSupported()) return null;
+  const reg = await navigator.serviceWorker.getRegistration();
+  return reg ? reg.pushManager.getSubscription() : null;
+}
+
+/* Show the banner only when this device could subscribe but hasn't. */
+async function maybeShowNotifBanner() {
+  const banner = $("notifBanner");
+  if (!banner) return;
+  if (!pushSupported() || Notification.permission === "denied" ||
+      localStorage.getItem("recv-notif-dismissed") === "1") {
+    banner.hidden = true; return;
+  }
+  const sub = await currentSubscription();
+  const registered = sub && (await isRegistered(sub.endpoint));
+  banner.hidden = !!registered;
+}
+
+async function isRegistered(endpoint) {
+  const { data } = await sb.from("recv_push_subscriptions")
+    .select("id").eq("endpoint", endpoint).maybeSingle();
+  return !!data;
+}
+
+async function enableNotifications() {
+  if (!pushSupported()) { toast("This browser can't do notifications"); return false; }
+  try {
+    const perm = Notification.permission === "granted"
+      ? "granted" : await Notification.requestPermission();
+    if (perm !== "granted") { toast("Notifications stayed off"); return false; }
+
+    const reg = await navigator.serviceWorker.register("sw.js");
+    await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+    }
+    const json = sub.toJSON();
+    const { error } = await sb.from("recv_push_subscriptions").upsert({
+      person_id: me.id, endpoint: sub.endpoint, subscription: json,
+    }, { onConflict: "endpoint" });
+    if (error) throw error;
+    localStorage.removeItem("recv-notif-dismissed");
+    $("notifBanner").hidden = true;
+    toast("Notifications on for this device");
+    refreshNotifStatus();
+    return true;
+  } catch (e) { fail("Turning on notifications", e); return false; }
+}
+
+async function disableNotifications() {
+  const sub = await currentSubscription();
+  if (sub) {
+    await sb.from("recv_push_subscriptions").delete().eq("endpoint", sub.endpoint);
+    await sub.unsubscribe();
+  }
+  toast("Notifications off for this device");
+  refreshNotifStatus();
+  maybeShowNotifBanner();
+}
+
+async function refreshNotifStatus() {
+  const n = $("notifStatus"); if (!n) return;
+  if (!pushSupported()) { n.textContent = "This browser doesn't support notifications."; return; }
+  if (Notification.permission === "denied") {
+    n.textContent = "Notifications are blocked in this browser's site settings.";
+    return;
+  }
+  const sub = await currentSubscription();
+  const on = sub && (await isRegistered(sub.endpoint));
+  n.textContent = on ? "Notifications are ON for this device." : "Notifications are off for this device.";
+  const b = $("notifManage");
+  if (b) b.textContent = on ? "Turn off on this device" : "Turn on for this device";
+}
+
+$("notifOn")?.addEventListener("click", enableNotifications);
+$("notifNo")?.addEventListener("click", () => {
+  localStorage.setItem("recv-notif-dismissed", "1");
+  $("notifBanner").hidden = true;
+});
+$("notifManage")?.addEventListener("click", async () => {
+  const sub = await currentSubscription();
+  const on = sub && (await isRegistered(sub.endpoint));
+  if (on) disableNotifications(); else enableNotifications();
+});
+
+/* ---------------- admin: email recipients ---------------- */
+$("emailForm")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const rows = [
+    { key: "email_to", value: $("setTo").value.trim() },
+    { key: "email_cc", value: $("setCc").value.trim() },
+  ];
+  const { error } = await sb.from("recv_settings").upsert(rows, { onConflict: "key" });
+  if (error) return fail("Saving email settings", error);
+  await loadSettings();
+  toast(settings.email_to ? "Email settings saved" : "Saved — but 'send to' is still empty");
 });
 
 boot();
