@@ -263,18 +263,22 @@ label.check input { width:20px; height:20px; min-height:0; }
 
 
 /* ---------- ALL CAPS ----------
-   Karley's request: EVERY word in the app renders in caps. The only
-   exception is the generated email draft, which is sent to a vendor and
-   must keep its real casing.
+   Every word inside the signed-in app renders in caps. Two things are
+   deliberately left alone:
+     1. the sign-in screen (.auth-gate), which keeps its original casing
+     2. the generated email draft, which is sent to a vendor
 
-   `body *` is used deliberately so nothing escapes - toasts, <option>s,
-   placeholders and anything rendered later are all covered. text-transform
-   is display-only: stored data and clipboard text are untouched, so emails
-   still send exactly as written. */
-body, body * { text-transform: uppercase; }
-option, ::placeholder { text-transform: uppercase; }
+   Scoped to .app rather than body so .auth-gate keeps every one of its own
+   styles, including the small uppercase eyebrow. .toast is named separately
+   because it sits outside .app in the markup.
 
-/* the one exception - the generated email draft */
+   text-transform is display-only: stored data and clipboard text are
+   untouched, so emails still send exactly as written. */
+.app, .app * { text-transform: uppercase; }
+.app option, .app ::placeholder { text-transform: uppercase; }
+.toast { text-transform: uppercase; }
+
+/* the one exception inside the app - the generated email draft */
 .email-subject, .email-subject *,
 .email-body, .email-body * { text-transform: none !important; }
 
