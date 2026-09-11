@@ -203,8 +203,13 @@ label.check input { width:20px; height:20px; min-height:0; }
 
 /* ---------- panels ---------- */
 .sheet-foot { display:grid; gap:12px; }
-.panel { background:var(--card); border:1.5px solid var(--line); border-radius:var(--r); padding:14px; }
-.panel h3 { font-size:15px; font-weight:800; margin-bottom:2px; }
+.panel { background:var(--card); border:1.5px solid var(--line); border-radius:var(--r); padding:17px 18px 18px; }
+.panel h3 { font-size:15px; font-weight:800; margin:0 0 7px; }
+/* paragraphs inside a panel need room from the heading and from each other */
+.panel > p.muted { margin:0; line-height:1.5; max-width:84ch; }
+.panel > p.muted + p.muted { margin-top:9px; }
+/* a button sitting directly in a panel needs separating from the text above */
+.panel > button, .panel > .btn { margin-top:15px; }
 .email-actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
 .email-subject { font-family:var(--display); font-weight:700; background:var(--wash); padding:9px 11px; border-radius:8px; }
 .email-body {
@@ -310,10 +315,11 @@ details.how li { font-size:12.5px; line-height:1.45; }
 .substep-b p { margin:0; font-weight:600; }
 
 /* ---------- admin ---------- */
-.inline-form { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin:10px 0; }
+.inline-form { display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin:15px 0 0; }
 .inline-form input { flex:1 1 150px; }
-.invite-list { display:grid; gap:6px; }
-.invite-row { display:flex; align-items:center; justify-content:space-between; gap:9px; background:var(--wash); border-radius:8px; padding:8px 11px; font-size:13.5px; }
+.invite-list { display:grid; gap:8px; margin-top:15px; }
+.invite-list:empty { margin-top:0; }
+.invite-row { display:flex; align-items:center; justify-content:space-between; gap:12px; background:var(--wash); border-radius:8px; padding:11px 13px; font-size:13.5px; }
 
 .version { text-align:center; color:var(--faint); font-size:11px; margin:26px 0 0; }
 
@@ -362,6 +368,8 @@ details.how li { font-size:12.5px; line-height:1.45; }
 #view-procedure h3,
 #view-procedure .lbl,
 #view-procedure .substep-tag { text-transform: uppercase; }
+
+#view-admin .panel + .panel { margin-top:13px; }
 
 /* Admin reads as prose too. Headings, buttons and the Admin labels stay caps. */
 #view-admin, #view-admin * { text-transform: none; }
