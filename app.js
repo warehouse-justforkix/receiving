@@ -1043,21 +1043,52 @@ $("notifManage")?.addEventListener("click", async () => {
 });
 
 /* ---------------- admin: catalog sync ---------------- */
+/* Full date and time, e.g. "Thu, Sep 11, 2026 at 8:59 AM" */
+function stamp(ts) {
+  const d = new Date(ts);
+  return d.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric", year: "numeric" })
+       + " at " + d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
 async function paintCatalogStat() {
   await loadSettings();
   const { count } = await sb.from("recv_catalog").select("*", { count: "exact", head: true });
-  const at = settings.catalog_synced_at
-    ? `last synced ${when(settings.catalog_synced_at)}` : "never synced";
-  // the deployed function's status text was mangled by the dashboard editor
-  // (an em-dash became mojibake); tidy it on the way out
-  const clean = (t) => String(t || "").replace(/\u00e2\u20ac\u201d|â€"/g, "-");
-  const st = settings.catalog_sync_status ? ` · ${clean(settings.catalog_sync_status)}` : "";
-  $("catalogStat").textContent = count
-    ? `${count.toLocaleString()} SKUs · ${at}${st}`
-    : `Catalog is empty — ${at}${st}. Press Sync now.`;
+  const raw = String(settings.catalog_sync_status || "");
+  const node = $("catalogStat");
+
+  // A sync in progress reports its running total; show that instead.
+  const running = raw.match(/running[^0-9]*([\d,]+)/i);
+  if (running) {
+    node.textContent = `Syncing from NetSuite now - ${Number(running[1].replace(/,/g, "")).toLocaleString()} SKUs so far...`;
+    node.style.color = "var(--amber)";
+    return;
+  }
+
+  // A failed run should say so plainly rather than be buried.
+  if (/^(error|failed)/i.test(raw)) {
+    node.textContent = "Last sync failed. Press Sync from NetSuite now to try again.";
+    node.style.color = "var(--pink)";
+    return;
+  }
+
+  if (!count) {
+    node.textContent = "No items yet - press Sync from NetSuite now to load the catalog.";
+    node.style.color = "var(--pink)";
+    return;
+  }
+
+  // style-colour count is parsed out of the status line rather than echoed,
+  // so the function's own wording never leaks into the UI
+  const sc = raw.match(/([\d,]+)\s*style-colors/i);
+  const scText = sc ? ` across ${Number(sc[1].replace(/,/g, "")).toLocaleString()} style-colors` : "";
+  const when_ = settings.catalog_synced_at ? `Last synced ${stamp(settings.catalog_synced_at)}.` : "";
+
+  node.textContent = `${count.toLocaleString()} SKUs${scText}. ${when_}`.trim();
+
   const stale = settings.catalog_synced_at &&
     (Date.now() - new Date(settings.catalog_synced_at).getTime()) > 8 * 86400_000;
-  $("catalogStat").style.color = (!count || stale) ? "var(--pink)" : "";
+  node.style.color = stale ? "var(--pink)" : "";
+  if (stale) node.textContent += " That is more than a week ago - the nightly sync may have stopped.";
 }
 
 $("syncNowBtn")?.addEventListener("click", async () => {
