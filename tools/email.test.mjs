@@ -32,7 +32,9 @@ console.log("\n--- subject ---\n" + ex1.subject + "\n--- body ---\n" + ex1.text 
 check("subject is 'PO# 45032 Discrepancies'", ex1.subject === "PO# 45032 Discrepancies", ex1.subject);
 check("opens with the greeting", ex1.text.startsWith("Hi Tristan,\n\n"));
 check("intro names the single item", ex1.text.includes("item is AC6776-Fuchsia and have these discrepancies."));
-check("asks the adjustment-or-more-stock question", ex1.text.includes("(I assume it is the second)."));
+check("asks the adjustment-or-more-stock question",
+  ex1.text.includes("Would you like us to do an inventory adjustment or is there more stock we are missing?"));
+check("the 'I assume it is the second' aside is gone", !ex1.text.includes("I assume it is the second"));
 check("has the counts header", ex1.text.includes("Here are our counts:"));
 check("Y6 line matches format", ex1.text.includes("Y6 counted 13 PO has 15 off by -2"));
 check("Y8 line matches format", ex1.text.includes("Y8 counted 39 PO has 48 off by -9"));

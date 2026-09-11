@@ -564,9 +564,9 @@ export function composeEmail({ po, adj, greeting = "Hi Tristan,", blocks }) {
   const intro = offRows.length
     ? (single
         ? `We are working on PO# ${po} item is ${single} and have these discrepancies.  ` +
-          `Would you like us to do an inventory adjustment or is there more stock we are missing (I assume it is the second).`
+          `Would you like us to do an inventory adjustment or is there more stock we are missing?`
         : `We are working on PO# ${po} and have these discrepancies.  ` +
-          `Would you like us to do an inventory adjustment or is there more stock we are missing (I assume it is the second).`)
+          `Would you like us to do an inventory adjustment or is there more stock we are missing?`)
     : `We finished PO# ${po}` + (single ? ` (${single})` : "") + ` and every size matched the PO.`;
   text.push(intro, "", "Here are our counts:");
   html.push(esc(intro), "", esc("Here are our counts:"));
