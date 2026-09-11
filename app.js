@@ -334,7 +334,10 @@ function renderGroups() {
     const recv = gl.filter((l) => lineState(l).key === "received").length;
     const shortOf = gl.filter((l) => ["short", "none", "notreceived"].includes(lineState(l).key)).length;
     left.append(el("p", "st", g.saved
-      ? `${recv} of ${gl.length} sizes received · ${counted} units`
+      ? (receiving
+          ? `${recv} of ${gl.length} sizes received · ${counted} units`
+          : `${sizesCounted} of ${gl.length} sizes counted · ${counted} units` +
+            (off ? ` · ${off} off` : ""))
       : receiving
         ? `${gl.length} size${gl.length === 1 ? "" : "s"}` +
           (sizesCounted ? ` · ${recv} received` : "") +
@@ -364,18 +367,8 @@ function renderGroups() {
 
     head.append(left, actions);
     card.append(head);
-    if (g.saved) {
-      // folded, but still openable to check the counts without unlocking them
-      const fold = el("details", "group-fold");
-      const sum = el("summary", null, "Review counts");
-      fold.append(sum);
-      const body = el("div", "group-fold-body");
-      gl.forEach((l) => body.append(renderLine(l, true)));
-      fold.append(body);
-      card.append(fold);
-    } else {
-      gl.forEach((l) => card.append(renderLine(l)));
-    }
+    // a saved style keeps its sizes on screen, just read-only
+    gl.forEach((l) => card.append(renderLine(l, g.saved)));
     wrap.append(card);
   });
 }
