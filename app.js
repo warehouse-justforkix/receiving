@@ -471,7 +471,7 @@ function drawBoxes(l, bx, row, frozen = false) {
   // database once a number is actually entered, so untouched sizes stay clean.
   if (!mine.length && !frozen) {
     const w = el("div", "box-wrap");
-    w.append(el("span", "bn", "Box 1"));
+    w.append(el("span", "bn", "Count 1"));
     const i = el("input", "box-in");
     i.type = "number"; i.inputMode = "numeric"; i.placeholder = "\u2013";
     i.addEventListener("change", async () => {
@@ -489,23 +489,23 @@ function drawBoxes(l, bx, row, frozen = false) {
 
   mine.forEach((b) => {
     const w = el("div", "box-wrap");
-    w.append(el("span", "bn", "Box " + b.box_no));
+    w.append(el("span", "bn", "Count " + b.box_no));
     const i = el("input", "box-in"); i.type = "number"; i.inputMode = "numeric"; i.value = b.qty;
     if (frozen) i.readOnly = true;
     i.addEventListener("change", async () => {
       if (frozen) return;
       const v = i.value === "" ? 0 : parseInt(i.value, 10);
       const { error } = await sb.from("recv_line_boxes").update({ qty: v }).eq("id", b.id);
-      if (error) return fail("Saving box", error);
+      if (error) return fail("Saving count", error);
       b.qty = v; await recount(l, row, bx);
     });
     // only offer removal once there is more than one box on the size
     if (mine.length > 1 && !frozen) {
       const rm = el("button", "linkish sm box-rm", "\u00d7");
-      rm.title = "Remove box " + b.box_no;
+      rm.title = "Remove count " + b.box_no;
       rm.addEventListener("click", async () => {
         const { error } = await sb.from("recv_line_boxes").delete().eq("id", b.id);
-        if (error) return fail("Removing box", error);
+        if (error) return fail("Removing count", error);
         boxes = boxes.filter((x) => x.id !== b.id);
         await recount(l, row, bx);
       });
@@ -521,10 +521,10 @@ function drawBoxes(l, bx, row, frozen = false) {
     return;
   }
   const add = el("button", "btn box-add", "+");
-  add.title = "Another box of this same size";
+  add.title = "Add another count for this size";
   add.addEventListener("click", async () => {
     const { data, error } = await sb.rpc("recv_add_box", { p_line: l.id });
-    if (error) return fail("Adding box", error);
+    if (error) return fail("Adding count", error);
     if (data) boxes.push(data);
     await recount(l, row, bx);
   });
