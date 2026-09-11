@@ -334,15 +334,19 @@ function renderGroups() {
 
     // Saving is a whole-sheet action now, at the top of the page. A style bar
     // only carries its own name, its counts, and the button to take it off.
+    // Remove only exists while the sheet is unlocked. Once it is saved the
+    // bar carries nothing but the style and its counts.
     const actions = el("div", "group-head-actions");
-    const del = el("button", "btn ghost sm", "Remove");
-    del.addEventListener("click", async () => {
-      if (!confirm(`Remove ${g.style_color} and its counts from this sheet?`)) return;
-      const { error } = await sb.from("recv_sheet_groups").delete().eq("id", g.id);
-      if (error) return fail("Removing style", error);
-      openSheet(sheet.id);
-    });
-    actions.append(del);
+    if (!g.saved) {
+      const del = el("button", "btn ghost sm", "Remove");
+      del.addEventListener("click", async () => {
+        if (!confirm(`Remove ${g.style_color} and its counts from this sheet?`)) return;
+        const { error } = await sb.from("recv_sheet_groups").delete().eq("id", g.id);
+        if (error) return fail("Removing style", error);
+        openSheet(sheet.id);
+      });
+      actions.append(del);
+    }
 
     head.append(left, actions);
     card.append(head);
