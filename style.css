@@ -200,6 +200,7 @@ label.check input { width:20px; height:20px; min-height:0; }
 .var.off, .var.over     { background:var(--pinkwash);  color:var(--pink); }
 .var.short, .var.none   { background:var(--amberwash); color:var(--amber); }
 .var.uncounted          { background:var(--wash); color:var(--faint); }
+.var.notreceived        { background:var(--pinkwash); color:var(--pink); }
 .var.counted            { background:var(--wash); color:var(--slate); }
 
 .boxes { display:flex; gap:7px; flex-wrap:wrap; align-items:center; margin-top:9px; }
@@ -214,6 +215,16 @@ label.check input { width:20px; height:20px; min-height:0; }
   background:var(--card); padding:0 3px;
 }
 .box-add { min-height:44px; width:44px; font-size:19px; font-weight:800; padding:0; }
+/* per-size Received / Not received, shown only while Partially Received */
+.recv-mark { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; }
+.recv-mark-label {
+  font-family:var(--display); font-size:9.5px; font-weight:700; letter-spacing:0.09em;
+  text-transform:uppercase; color:var(--faint);
+}
+.recv-btn { min-height:38px; padding:7px 13px; font-size:12.5px; }
+.recv-btn.on.yes { background:var(--green); border-color:var(--green); color:#fff; }
+.recv-btn.on.no  { background:var(--coral); border-color:var(--coral); color:#fff; }
+
 .bins { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; margin-top:9px; }
 .bins input { min-height:38px; padding:7px 9px; font-size:13.5px; }
 

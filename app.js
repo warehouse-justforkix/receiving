@@ -371,6 +371,29 @@ function renderLine(l, frozen = false) {
   const bx = el("div", "boxes");
   row.append(bx);
 
+  // On a Partially Received sheet each size is marked by hand, so there is no
+  // doubt about which ones actually came in.
+  if (sheet?.status === "partial" && !frozen) {
+    const mark = el("div", "recv-mark");
+    mark.append(el("span", "recv-mark-label", "Did this size arrive?"));
+    const mk = (val, text) => {
+      const b = el("button", "btn sm recv-btn" + (l.received === val ? " on " + (val ? "yes" : "no") : ""));
+      b.textContent = text;
+      b.addEventListener("click", async () => {
+        const next = l.received === val ? null : val;   // tap again to clear
+        const { error } = await sb.from("recv_sheet_lines").update({ received: next }).eq("id", l.id);
+        if (error) return fail("Marking size", error);
+        l.received = next;
+        const i = lines.findIndex((x) => x.id === l.id);
+        if (i >= 0) lines[i].received = next;
+        renderGroups(); renderTotals(); loadAudit();
+      });
+      return b;
+    };
+    mark.append(mk(true, "Received"), mk(false, "Not received"));
+    row.append(mark);
+  }
+
   drawBoxes(l, bx, row, frozen);
   refreshLine(l, row);
   return row;
@@ -461,6 +484,9 @@ async function recount(l, row, bx) {
    separate tick box - so the badge can never disagree with the numbers, and
    the crew has nothing extra to tap while counting a truck. */
 function lineState(l) {
+  // an explicit mark, where someone has made the call, always wins
+  if (l.received === true)  return { key: "received", label: "Received" };
+  if (l.received === false) return { key: "notreceived", label: "Not received" };
   const hasCount = boxes.some((b) => b.line_id === l.id);
   if (!hasCount) return { key: "uncounted", label: "Not counted" };
   const c = l.counted_qty || 0;
@@ -1299,8 +1325,19 @@ function buildReceivedEmail() {
   // come in, so those are the ones Karley is told about. On a fully received
   // sheet every style on it is included.
   const partial = sheet.status === "partial";
-  const saved = groups.filter((g) => g.saved);
-  const items = (partial && saved.length ? saved : groups).map((g) => g.style_color);
+  let items;
+  if (partial) {
+    // group the sizes somebody marked Received under their style-color
+    items = groups.map((g) => {
+      const got = lines.filter((l) => l.group_id === g.id && l.received === true)
+                       .sort((a, b) => a.sort_order - b.sort_order)
+                       .map((l) => sizeLabel(l.size));
+      return got.length ? `${g.style_color} (${got.join(", ")})` : null;
+    }).filter(Boolean);
+    if (!items.length) items = groups.filter((g) => g.saved).map((g) => g.style_color);
+  } else {
+    items = groups.map((g) => g.style_color);
+  }
   const to = settings.email_cc || "";
   let subject, body;
   if (items.length === 1) {
