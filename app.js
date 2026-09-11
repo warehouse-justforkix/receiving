@@ -346,10 +346,10 @@ function renderGroups() {
 
     const actions = el("div", "group-head-actions");
     if (g.saved) {
-      // "Received" is only true once receiving has started; before that a
-      // saved style just means its counts are locked in
-      actions.append(el("span", "saved-badge" + (receiving ? "" : " counted"),
-        receiving ? "\u2713 Received" : "\u2713 Counted"));
+      // No status badge while counting - a saved style is simply locked, and
+      // the Edit button already shows that. The badge only means something
+      // once receiving has started.
+      if (receiving) actions.append(el("span", "saved-badge", "\u2713 Received"));
       const edit = el("button", "btn ghost sm", "Edit");
       edit.addEventListener("click", () => setGroupSaved(g, false));
       actions.append(edit);

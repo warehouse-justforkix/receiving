@@ -184,7 +184,6 @@ label.check input { width:20px; height:20px; min-height:0; }
   font-size:9.5px; font-weight:800; letter-spacing:0.09em; text-transform:uppercase;
   background:var(--blue); color:#fff; padding:3px 8px; border-radius:999px;
 }
-.saved-badge.counted { background:var(--slate); }
 .group.saved .group-head { background:var(--wash); }
 .group.saved .group-head h3 { color:var(--ink); }
 .group.saved.is-received .group-head { background:var(--bluewash); }
