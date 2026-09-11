@@ -10,7 +10,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<"
 /* The three sheet statuses. The stored values are historical; these are the
    words the warehouse uses, and the only ones shown anywhere. */
 const STATUS_LABEL = {
-  counting:  "Counted",
+  counting:  "Counting",
   submitted: "Pending Action",
   closed:    "Items Received",
 };
@@ -192,7 +192,7 @@ $("newSheetBtn").addEventListener("click", async () => {
   if (po === null) return;
   const today = new Date().toLocaleDateString([], { year: "numeric", month: "short", day: "numeric" });
   const { data, error } = await sb.from("recv_sheets")
-    .insert({ title: `PO ${po.trim() || "—"} · ${today}`, po_number: po.trim(), created_by: me.id })
+    .insert({ title: `PO ${po.trim() || "—"} · ${today}`, po_number: po.trim(), status: "counting", created_by: me.id })
     .select().single();
   if (error) return fail("Creating sheet", error);
   await loadSheets();
