@@ -403,45 +403,7 @@ async function setGroupSaved(g, saved) {
   toast(saved ? `${g.style_color} saved` : `${g.style_color} reopened for editing`);
 }
 
-/* One count input. `b` is the stored row, or undefined for a size nobody has
-   counted yet - in that case the row is only created once a number is typed,
-   so untouched sizes leave nothing behind. */
-function buildCountInput(l, b, row, frozen) {
-  const i = el("input", "box-in");
-  i.type = "number"; i.inputMode = "numeric";
-  if (b) i.value = b.qty; else i.placeholder = "\u2013";
-  if (frozen) { i.readOnly = true; return i; }
-  i.addEventListener("change", async () => {
-    const v = i.value === "" ? 0 : parseInt(i.value, 10) || 0;
-    if (b) {
-      const { error } = await sb.from("recv_line_boxes").update({ qty: v }).eq("id", b.id);
-      if (error) return fail("Saving count", error);
-      b.qty = v;
-    } else {
-      if (i.value === "") return;
-      const { data, error } = await sb.from("recv_line_boxes")
-        .insert({ line_id: l.id, box_no: 1, qty: v, created_by: me.id })
-        .select().single();
-      if (error) return fail("Saving count", error);
-      boxes.push(data);
-    }
-    await recount(l);
-  });
-  return i;
-}
 
-/* Adds a second (or third...) count to a size. */
-function buildAddCount(l, row) {
-  const add = el("button", "btn box-add", "+");
-  add.title = "Add another count for this size";
-  add.addEventListener("click", async () => {
-    const { data, error } = await sb.rpc("recv_add_box", { p_line: l.id });
-    if (error) return fail("Adding count", error);
-    if (data) boxes.push(data);
-    await recount(l);
-  });
-  return add;
-}
 
 function renderLine(l, frozen = false) {
   const row = el("div", "line" + (frozen ? " frozen" : ""));
@@ -450,19 +412,9 @@ function renderLine(l, frozen = false) {
 
   const nums = el("div", "line-nums");
 
-  // With one count the input is the counted figure, so showing a separate
-  // total repeats it on a second line. Only split them once several counts
-  // actually add up to something.
-  const mine = boxes.filter((b) => b.line_id === l.id).sort((a, b) => a.box_no - b.box_no);
-  const inlineCount = mine.length <= 1;
-
+  // counted first, then what the PO ordered right beside it
   nums.append(el("span", "sm", "Counted"));
-  if (inlineCount) {
-    nums.append(buildCountInput(l, mine[0], row, frozen));
-    if (!frozen) nums.append(buildAddCount(l, row));
-  } else {
-    nums.append(el("span", "counted", num(l.counted_qty)));
-  }
+  nums.append(el("span", "counted", num(l.counted_qty)));
 
   const po = el("input", "po"); po.type = "number"; po.inputMode = "numeric";
   po.value = l.po_qty ?? ""; po.placeholder = "—";
@@ -485,9 +437,9 @@ function renderLine(l, frozen = false) {
   top.append(nums);
   row.append(top);
 
-  // several counts get their own row beneath, summing into the total above
+  // labelled count boxes, one per count, summing into the total above
   const bx = el("div", "boxes");
-  if (!inlineCount) row.append(bx);
+  row.append(bx);
 
   // On a Partially Received sheet each size is marked by hand, so there is no
   // doubt about which ones actually came in.
@@ -512,7 +464,7 @@ function renderLine(l, frozen = false) {
     row.append(mark);
   }
 
-  if (!inlineCount) drawBoxes(l, bx, row, frozen);
+  drawBoxes(l, bx, row, frozen);
   refreshLine(l, row);
   return row;
 }
