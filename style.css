@@ -363,6 +363,16 @@ details.how li { font-size:12.5px; line-height:1.45; }
 #view-procedure .lbl,
 #view-procedure .substep-tag { text-transform: uppercase; }
 
+/* Admin reads as prose too. Headings, buttons and the Admin labels stay caps. */
+#view-admin, #view-admin * { text-transform: none; }
+#view-admin h2,
+#view-admin h3,
+#view-admin button,
+#view-admin .btn,
+#view-admin .lbl,
+#view-admin label.check { text-transform: uppercase; }
+#view-admin ::placeholder, #view-admin input, #view-admin select { text-transform: none; }
+
 /* the one exception inside the app - the generated email draft */
 .email-subject, .email-subject *,
 .email-body, .email-body * { text-transform: none !important; }

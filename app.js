@@ -1048,7 +1048,10 @@ async function paintCatalogStat() {
   const { count } = await sb.from("recv_catalog").select("*", { count: "exact", head: true });
   const at = settings.catalog_synced_at
     ? `last synced ${when(settings.catalog_synced_at)}` : "never synced";
-  const st = settings.catalog_sync_status ? ` · ${settings.catalog_sync_status}` : "";
+  // the deployed function's status text was mangled by the dashboard editor
+  // (an em-dash became mojibake); tidy it on the way out
+  const clean = (t) => String(t || "").replace(/\u00e2\u20ac\u201d|â€"/g, "-");
+  const st = settings.catalog_sync_status ? ` · ${clean(settings.catalog_sync_status)}` : "";
   $("catalogStat").textContent = count
     ? `${count.toLocaleString()} SKUs · ${at}${st}`
     : `Catalog is empty — ${at}${st}. Press Sync now.`;

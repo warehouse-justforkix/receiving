@@ -5,7 +5,7 @@
 // same SKU parsing, same OAuth 1.0 HMAC-SHA256 token-based auth.
 //
 // Deploy from the Supabase dashboard (Edge Functions -> Deploy a new function ->
-// Via Editor), name it exactly `recv-sync-catalog`, and turn "Verify JWT" OFF —
+// Via Editor), name it exactly `recv-sync-catalog`, and turn "Verify JWT" OFF -
 // this function checks authorization itself (see below).
 //
 // Secrets to set (Edge Functions -> Secrets):
@@ -42,7 +42,7 @@ const need = (k: string) => {
   return v;
 };
 
-/* ---------------- OAuth 1.0 (TBA) — must match the Python byte-for-byte ---------------- */
+/* ---------------- OAuth 1.0 (TBA) - must match the Python byte-for-byte ---------------- */
 // RFC 3986: equals Python urllib.parse.quote(s, safe="-._~"). encodeURIComponent alone
 // leaves ! ' ( ) * unescaped and produces a different signature.
 const pct = (s: string | number) =>
@@ -75,7 +75,7 @@ async function suiteql(q: string, limit = 1000, offset = 0) {
     oauth_nonce: nonce(),
     oauth_version: "1.0",
   };
-  // every query param takes part in the signature; sign the bare URL, not URL?limit=…
+  // every query param takes part in the signature; sign the bare URL, not URL?limit=...
   const allp = { ...oauth, ...qs };
   const norm = Object.keys(allp).sort().map((k) => `${pct(k)}=${pct(allp[k])}`).join("&");
   const base = `POST&${pct(url)}&${pct(norm)}`;
@@ -103,7 +103,7 @@ function parseSku(sku: string, style: string | null) {
   let size: string, color: string;
   const last = parts[parts.length - 1];
   if (parts.length >= 3 && last.length === 1 && "MNWX".includes(last.toUpperCase())) {
-    size = parts.slice(-2).join("-");           // 'Y8-M' — shoe size plus width
+    size = parts.slice(-2).join("-");           // 'Y8-M' - shoe size plus width
     color = parts.slice(0, -2).join("-");
   } else {
     size = last;
@@ -170,7 +170,7 @@ async function runSync(months: number) {
                           catalog_sync_status: `running: ${done} SKUs so far` });
 
       if (Date.now() - started > WALL_BUDGET_MS) {
-        await setSettings({ catalog_sync_status: `paused at ${done} SKUs — will resume on the next run` });
+        await setSettings({ catalog_sync_status: `paused at ${done} SKUs - will resume on the next run` });
         return;
       }
     }
@@ -184,7 +184,7 @@ async function runSync(months: number) {
       catalog_sync_offset: "0",
       catalog_sync_partial: "0",
       catalog_synced_at: new Date().toISOString(),
-      catalog_sync_status: `ok — ${done} SKUs, ${styles ?? "?"} style-colors, ${Math.round((Date.now() - started) / 1000)}s`,
+      catalog_sync_status: `ok - ${done} SKUs, ${styles ?? "?"} style-colors, ${Math.round((Date.now() - started) / 1000)}s`,
     });
   } catch (e) {
     await setSettings({
