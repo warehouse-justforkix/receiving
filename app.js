@@ -697,13 +697,14 @@ const DEFAULT_DOC = [
 ];
 
 let docSteps = [];
+// The procedure comes from DEFAULT_DOC above and nowhere else. It is not read
+// from the database, so no row inserted there can override the steps, and
+// nothing in the app can edit, reorder or delete them. Karley maintains the
+// wording in this file.
 async function loadDoc() {
-  const { data } = await sb.from("recv_doc").select("*").eq("slug", "procedure").maybeSingle();
-  docSteps = data?.body?.length ? data.body : DEFAULT_DOC;
-  $("docTitle").textContent = data?.title || "Truck Receiving Procedure";
-  $("docMeta").textContent = data
-    ? `v${data.version} · updated ${when(data.updated_at)}`
-    : "Showing the default procedure — save once to store it.";
+  docSteps = DEFAULT_DOC;
+  $("docTitle").textContent = "Truck Receiving Procedure";
+  $("docMeta").textContent = "Tick each step off as you work through the truck.";
   renderDoc();
 }
 const PROGRESS_KEY = "recv-procedure-progress";
@@ -816,48 +817,9 @@ function renderDecision(stp) {
   }
   return wrap;
 }
-$("editDocBtn").addEventListener("click", () => {
-  $("docView").hidden = true; $("docEdit").hidden = false; $("editDocBtn").hidden = true;
-  paintDocEditor();
-});
-$("docCancel").addEventListener("click", () => {
-  $("docView").hidden = false; $("docEdit").hidden = true; $("editDocBtn").hidden = false;
-  loadDoc();
-});
-function paintDocEditor() {
-  const box = $("docSteps"); box.textContent = "";
-  docSteps.forEach((s, i) => {
-    const r = el("div", "doc-edit-row");
-    const t = el("input"); t.value = s.title || ""; t.placeholder = "Step title";
-    t.addEventListener("input", () => { docSteps[i].title = t.value; });
-    const b = el("textarea"); b.rows = 3; b.value = s.body || ""; b.placeholder = "Step body";
-    b.addEventListener("input", () => { docSteps[i].body = b.value; });
-    const f = el("input"); f.value = s.flag || ""; f.placeholder = "Callout box (optional)";
-    f.addEventListener("input", () => { docSteps[i].flag = f.value; });
-    const bar = el("div", "email-actions");
-    const crit = el("label", "check");
-    const cb = el("input"); cb.type = "checkbox"; cb.checked = !!s.critical;
-    cb.addEventListener("change", () => { docSteps[i].critical = cb.checked; });
-    crit.append(cb, document.createTextNode(" Highlight callout in pink"));
-    const rm = el("button", "btn ghost sm danger", "Delete step");
-    rm.addEventListener("click", () => { docSteps.splice(i, 1); paintDocEditor(); });
-    bar.append(crit, rm);
-    r.append(t, b, f, bar); box.append(r);
-  });
-}
-$("docAddStep").addEventListener("click", () => { docSteps.push({ title: "", body: "" }); paintDocEditor(); });
-$("docSave").addEventListener("click", async () => {
-  const { data: cur } = await sb.from("recv_doc").select("version").eq("slug", "procedure").maybeSingle();
-  const { error } = await sb.from("recv_doc").upsert({
-    slug: "procedure", title: $("docTitle").textContent,
-    body: docSteps, version: (cur?.version || 0) + 1,
-    updated_by: me.id, updated_at: new Date().toISOString(),
-  }, { onConflict: "slug" });
-  if (error) return fail("Saving document", error);
-  toast("Document saved");
-  $("docView").hidden = false; $("docEdit").hidden = true; $("editDocBtn").hidden = false;
-  loadDoc();
-});
+// The procedure is deliberately read-only in the app. It is maintained in
+// DEFAULT_DOC in this file so the steps cannot be changed, reordered or
+// deleted by anyone using the site.
 
 /* ---------------- admin ---------------- */
 async function loadAdmin() {
