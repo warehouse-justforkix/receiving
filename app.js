@@ -311,8 +311,6 @@ function renderTotals() {
   const tile = (k, v, cls) => { const t = el("div", "tile" + (cls ? " " + cls : "")); t.append(el("p", "k", k), el("p", "v", typeof v === "number" ? num(v) : String(v))); return t; };
   box.append(
     tile("Sizes counted", sizesCounted),
-    tile("Counted", counted),
-    tile("PO qty", withPo.length ? po : "—"),
     tile("Off", off.length, off.length ? "off" : "ok"),
   );
 }

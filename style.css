@@ -165,10 +165,15 @@ label.check input { width:20px; height:20px; min-height:0; }
 .sheet-meta { display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin-top:12px; }
 .sheet-meta label { font-family:var(--display); font-size:9px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; color:var(--faint); display:grid; gap:3px; }
 
-.totals { display:grid; grid-template-columns:repeat(auto-fit,minmax(104px,1fr)); gap:9px; margin-bottom:14px; }
-.tile { background:var(--card); border:1.5px solid var(--line); border-radius:var(--r); padding:10px 12px; }
+/* Two small figures - sized to their content rather than stretched across
+   the page, so they read as a summary line, not as the main event. */
+.totals { display:flex; flex-wrap:wrap; gap:9px; margin-bottom:14px; }
+.tile {
+  background:var(--card); border:1.5px solid var(--line); border-radius:var(--r);
+  padding:9px 16px 10px; display:flex; align-items:baseline; gap:9px; min-width:0;
+}
 .tile .k { font-family:var(--display); font-size:9px; font-weight:700; letter-spacing:0.11em; text-transform:uppercase; color:var(--faint); }
-.tile .v { font-family:var(--display); font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; }
+.tile .v { font-family:var(--display); font-size:19px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; }
 .tile.off .v { color:var(--pink); }
 .tile.ok  .v { color:var(--green); }
 
