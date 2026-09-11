@@ -128,9 +128,24 @@ label.check input { width:20px; height:20px; min-height:0; }
   font:inherit; color:inherit;
 }
 .sheet-row:hover { border-color:var(--plum); }
-.sheet-row.ok    { border-left-color:var(--green); }
-.sheet-row.off   { border-left-color:var(--pink); }
-.sheet-row.empty { border-left-color:var(--line); }
+/* the left stripe is the sheet's status, so the list reads at a glance */
+.sheet-row.st-counting  { border-left-color:var(--slate); }
+.sheet-row.st-submitted { border-left-color:var(--pink); }
+.sheet-row.st-partial   { border-left-color:var(--amber); }
+.sheet-row.st-closed    { border-left-color:var(--blue); }
+.off-note { color:var(--pink) !important; font-weight:700; }
+
+/* section headings in the sheet list */
+.list-section {
+  display:flex; align-items:center; gap:9px; margin:16px 0 2px;
+  font-family:var(--display); font-size:11px; font-weight:800;
+  letter-spacing:0.11em; text-transform:uppercase; color:var(--slate);
+}
+.list-section:first-child { margin-top:2px; }
+.list-section::after { content:""; flex:1; height:1.5px; background:var(--line); }
+.list-section-note {
+  order:3; font-size:10.5px; color:var(--faint); font-variant-numeric:tabular-nums;
+}
 .sheet-row h3 { font-size:15.5px; font-weight:700; }
 .sheet-row .sub { grid-column:1; font-size:12.5px; color:var(--slate); }
 .sheet-row .tally { grid-column:2; grid-row:1 / span 2; text-align:right; font-variant-numeric:tabular-nums; }
@@ -138,10 +153,10 @@ label.check input { width:20px; height:20px; min-height:0; }
   display:inline-block; font-family:var(--display); font-size:9.5px; font-weight:800;
   letter-spacing:0.09em; text-transform:uppercase; padding:3px 8px; border-radius:999px;
 }
-.pill.counting  { background:var(--amberwash); color:var(--amber); }
+.pill.counting  { background:var(--wash);      color:var(--slate); }
 .pill.submitted { background:var(--pinkwash);  color:var(--pink); }
 .pill.partial   { background:var(--amberwash); color:var(--amber); }
-.pill.closed    { background:var(--greenwash); color:var(--green); }
+.pill.closed    { background:var(--bluewash);  color:var(--blue); }
 .empty-state { text-align:center; color:var(--slate); padding:34px 16px; border:1.5px dashed var(--line); border-radius:var(--r); }
 
 /* ---------- sheet editor ---------- */
@@ -451,10 +466,10 @@ details.how li { font-size:12.5px; line-height:1.45; }
    text-transform is display-only: stored data and clipboard text are
    untouched, so emails still send exactly as written. */
 .app, .app * { text-transform: uppercase; }
-.app option, .app ::placeholder { text-transform: uppercase; }
-/* the SKU hint is an example sentence, not a label - but anything typed or
-   picked stays uppercase, and is stored uppercase */
-.app #skuInput::placeholder { text-transform: none; }
+.app option { text-transform: uppercase; }
+/* Placeholders are example text, not labels - they render exactly as written
+   in the HTML, so "optional" stays lowercase and "XXL" stays uppercase. */
+.app ::placeholder { text-transform: none; }
 .toast { text-transform: uppercase; }
 /* Explanatory text under a panel heading is prose, not a label - sentence
    case, the same as the Procedure and Admin descriptions. */
@@ -483,7 +498,7 @@ details.how li { font-size:12.5px; line-height:1.45; }
 #view-admin .btn,
 #view-admin .lbl,
 #view-admin label.check { text-transform: uppercase; }
-#view-admin ::placeholder, #view-admin input, #view-admin select { text-transform: none; }
+#view-admin input, #view-admin select { text-transform: none; }
 
 /* the one exception inside the app - the generated email draft */
 .email-subject, .email-subject *,

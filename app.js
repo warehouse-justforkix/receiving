@@ -159,31 +159,75 @@ function renderSheets() {
     `${sheets.length} sheet${sheets.length === 1 ? "" : "s"} · ${totalOff} with discrepancies`;
 
   if (!rows.length) {
-    box.append(el("div", "empty-state", sheets.length ? "No sheets match those filters." : "No count sheets yet. Start one when a truck arrives."));
+    box.append(el("div", "empty-state", sheets.length
+      ? "No sheets match those filters."
+      : "No count sheets yet. Start one when a truck arrives."));
     return;
   }
 
-  rows.forEach((s) => {
-    const stats = sheetStats(s);
-    const cls = stats.withPo === 0 ? "empty" : stats.off > 0 ? "off" : "ok";
-    const row = el("button", `sheet-row ${cls}`);
-    row.type = "button";
-    const h = el("h3", null, s.title || "(untitled)");
-    const sub = el("p", "sub");
-    sub.textContent = `PO# ${s.po_number || "—"}` +
-      (s.vendor ? ` · ${s.vendor}` : "") +
-      ` · ${(s.grps || []).length} style-color · ${when(s.created_at)}`;
-    const tally = el("div", "tally");
-    tally.append(el("span", `pill ${s.status}`, statusLabel(s.status)));
-    const n = el("p", "sub");
-    n.textContent = stats.withPo === 0 ? "no PO qty yet"
-      : stats.off > 0 ? `${stats.off} off` : "all matched";
-    tally.append(n);
-    row.append(h, sub, tally);
-    row.addEventListener("click", () => openSheet(s.id));
-    box.append(row);
+  const sectionHead = (text, note) => {
+    const h = el("p", "list-section");
+    h.append(el("span", null, text));
+    if (note) h.append(el("span", "list-section-note", note));
+    return h;
+  };
+
+  // Work in progress first, finished work filed underneath.
+  ["counting", "submitted", "partial"].forEach((key) => {
+    const inThis = rows.filter((s) => s.status === key);
+    if (!inThis.length) return;
+    box.append(sectionHead(statusLabel(key), `${inThis.length}`));
+    inThis
+      .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+      .forEach((s) => box.append(sheetRow(s)));
   });
+
+  // Received sheets are filed by the month they were completed.
+  const done = rows.filter((s) => s.status === "closed");
+  if (done.length) {
+    box.append(sectionHead(statusLabel("closed"), `${done.length}`));
+    const byMonth = new Map();
+    done.forEach((s) => {
+      const d = new Date(s.closed_at || s.updated_at || s.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth()).padStart(2, "0")}`;
+      if (!byMonth.has(key)) {
+        byMonth.set(key, { when: d, label: d.toLocaleDateString([], { month: "long", year: "numeric" }), items: [] });
+      }
+      byMonth.get(key).items.push(s);
+    });
+    [...byMonth.values()]
+      .sort((a, b) => b.when - a.when)
+      .forEach((m) => {
+        box.append(sectionHead(m.label, `${m.items.length}`, true));
+        m.items
+          .sort((a, b) => new Date(b.closed_at || b.created_at) - new Date(a.closed_at || a.created_at))
+          .forEach((s) => box.append(sheetRow(s)));
+      });
+  }
 }
+
+function sheetRow(s) {
+  const stats = sheetStats(s);
+  // the stripe down the left is the sheet's status, not its discrepancy count
+  const row = el("button", `sheet-row st-${s.status}`);
+  row.type = "button";
+  row.append(el("h3", null, s.title || "(untitled)"));
+  const sub = el("p", "sub");
+  sub.textContent = `PO# ${s.po_number || "—"}` +
+    (s.vendor ? ` · ${s.vendor}` : "") +
+    ` · ${(s.grps || []).length} style-color · ${when(s.created_at)}`;
+  const tally = el("div", "tally");
+  tally.append(el("span", `pill ${s.status}`, statusLabel(s.status)));
+  const n = el("p", "sub");
+  n.textContent = stats.withPo === 0 ? "no PO qty yet"
+    : stats.off > 0 ? `${stats.off} off` : "all matched";
+  if (stats.off > 0) n.className = "sub off-note";
+  tally.append(n);
+  row.append(sub, tally);
+  row.addEventListener("click", () => openSheet(s.id));
+  return row;
+}
+
 ["sheetSearch", "statusFilter", "discrepOnly"].forEach((id) =>
   $(id).addEventListener("input", renderSheets));
 
@@ -1312,6 +1356,7 @@ $("resetForm")?.addEventListener("submit", async (e) => {
 // the layout can be checked while developing. Inert on the live site.
 if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
   window.__previewDoc = () => { docSteps = DEFAULT_DOC; renderDoc(); };
+  window.__previewList = (list) => { sheets = list; renderSheets(); };
   window.__previewSheet = (d) => {
     sheet = d.sheet; groups = d.groups; lines = d.lines; boxes = d.boxes;
     renderGroups(); renderTotals();
