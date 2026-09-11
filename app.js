@@ -78,6 +78,7 @@ async function boot() {
   await loadSheets();
   await loadDoc();
   if (isAdmin) loadAdmin();
+  refreshNotifStatus();
   maybeShowNotifBanner();
   refreshNotifStatus();
 }
@@ -891,7 +892,33 @@ async function disableNotifications() {
   maybeShowNotifBanner();
 }
 
+async function paintNotifTop(state) {
+  const b = $("notifTop"), icon = $("notifTopIcon"), label = $("notifTopLabel");
+  if (!b) return;
+  b.classList.remove("on", "off", "blocked");
+  if (state === "unsupported") { b.hidden = true; return; }
+  b.hidden = false;
+  if (state === "blocked") {
+    b.classList.add("blocked"); icon.innerHTML = "&#128263;"; label.textContent = "Blocked";
+    b.title = "Notifications are blocked in this browser's settings for this site";
+  } else if (state === "on") {
+    b.classList.add("on"); icon.innerHTML = "&#128276;"; label.textContent = "Notifications on";
+    b.title = "Notifications are ON for this device - click to turn off";
+  } else {
+    b.classList.add("off"); icon.innerHTML = "&#128277;"; label.textContent = "Notifications";
+    b.title = "Turn on notifications for this device";
+  }
+}
+
 async function refreshNotifStatus() {
+  // top-bar button first: it exists for everyone, the Admin panel text does not
+  if (!pushSupported()) { paintNotifTop("unsupported"); }
+  else if (Notification.permission === "denied") { paintNotifTop("blocked"); }
+  else {
+    const s0 = await currentSubscription();
+    paintNotifTop(s0 && (await isRegistered(s0.endpoint)) ? "on" : "off");
+  }
+
   const n = $("notifStatus"); if (!n) return;
   if (isIOS && !isInstalled()) { n.textContent = IOS_HINT; return; }
   if (!pushSupported()) { n.textContent = "This browser doesn't support notifications."; return; }
@@ -911,6 +938,17 @@ $("notifNo")?.addEventListener("click", () => {
   localStorage.setItem("recv-notif-dismissed", String(Date.now()));
   $("notifBanner").hidden = true;
 });
+$("notifTop")?.addEventListener("click", async () => {
+  if (Notification.permission === "denied") {
+    toast("Notifications are blocked for this site in your browser settings");
+    return;
+  }
+  const sub = await currentSubscription();
+  const on = sub && (await isRegistered(sub.endpoint));
+  if (on) await disableNotifications(); else await enableNotifications();
+  refreshNotifStatus();
+});
+
 $("notifManage")?.addEventListener("click", async () => {
   const sub = await currentSubscription();
   const on = sub && (await isRegistered(sub.endpoint));

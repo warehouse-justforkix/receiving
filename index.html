@@ -56,6 +56,9 @@
     </nav>
     <div class="whoami">
       <span id="whoName"></span>
+      <button class="btn ghost sm notif-btn" id="notifTop" title="Notifications on this device">
+        <span id="notifTopIcon">&#128276;</span><span id="notifTopLabel">Notifications</span>
+      </button>
       <button class="btn ghost sm" id="signOut">Sign out</button>
     </div>
   </header>
@@ -92,12 +95,6 @@
       <label class="check"><input type="checkbox" id="discrepOnly"> Discrepancies only</label>
     </div>
     <div id="sheetList" class="sheet-list"></div>
-
-    <div class="panel notif-panel">
-      <h3>Notifications on this device</h3>
-      <p class="muted sm" id="notifStatus">&nbsp;</p>
-      <button class="btn sm" id="notifManage">Turn on for this device</button>
-    </div>
   </section>
 
   <!-- ---------- one sheet ---------- -->

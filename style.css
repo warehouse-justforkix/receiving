@@ -242,6 +242,13 @@ label.check input { width:20px; height:20px; min-height:0; }
 
 .version { text-align:center; color:var(--faint); font-size:11px; margin:26px 0 0; }
 
+/* ---------- notifications control in the top bar ---------- */
+.notif-btn { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+.notif-btn.on  { border-color:var(--green); color:var(--green); }
+.notif-btn.off { border-color:var(--line);  color:var(--slate); }
+.notif-btn.blocked { border-color:var(--coral); color:var(--coral); }
+@media (max-width:560px) { #notifTopLabel { display:none; } }
+
 /* ---------- notification banner ---------- */
 .notif-banner {
   display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;
