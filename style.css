@@ -180,6 +180,8 @@ label.check input { width:20px; height:20px; min-height:0; }
 .tile.ok  .v { color:var(--green); }
 
 .group { background:var(--card); border:1.5px solid var(--line); border-radius:var(--r); margin-bottom:12px; overflow:hidden; }
+/* The style bar is always the app's maroon. Status is never signalled here -
+   it belongs on the size rows. Do not add state-based overrides. */
 .group-head {
   display:flex; align-items:center; justify-content:space-between; gap:10px;
   padding:11px 13px; background:var(--plum); border-bottom:1.5px solid var(--plum);
