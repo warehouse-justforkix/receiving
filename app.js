@@ -403,6 +403,46 @@ async function setGroupSaved(g, saved) {
   toast(saved ? `${g.style_color} saved` : `${g.style_color} reopened for editing`);
 }
 
+/* One count input. `b` is the stored row, or undefined for a size nobody has
+   counted yet - in that case the row is only created once a number is typed,
+   so untouched sizes leave nothing behind. */
+function buildCountInput(l, b, row, frozen) {
+  const i = el("input", "box-in");
+  i.type = "number"; i.inputMode = "numeric";
+  if (b) i.value = b.qty; else i.placeholder = "\u2013";
+  if (frozen) { i.readOnly = true; return i; }
+  i.addEventListener("change", async () => {
+    const v = i.value === "" ? 0 : parseInt(i.value, 10) || 0;
+    if (b) {
+      const { error } = await sb.from("recv_line_boxes").update({ qty: v }).eq("id", b.id);
+      if (error) return fail("Saving count", error);
+      b.qty = v;
+    } else {
+      if (i.value === "") return;
+      const { data, error } = await sb.from("recv_line_boxes")
+        .insert({ line_id: l.id, box_no: 1, qty: v, created_by: me.id })
+        .select().single();
+      if (error) return fail("Saving count", error);
+      boxes.push(data);
+    }
+    await recount(l);
+  });
+  return i;
+}
+
+/* Adds a second (or third...) count to a size. */
+function buildAddCount(l, row) {
+  const add = el("button", "btn box-add", "+");
+  add.title = "Add another count for this size";
+  add.addEventListener("click", async () => {
+    const { data, error } = await sb.rpc("recv_add_box", { p_line: l.id });
+    if (error) return fail("Adding count", error);
+    if (data) boxes.push(data);
+    await recount(l);
+  });
+  return add;
+}
+
 function renderLine(l, frozen = false) {
   const row = el("div", "line" + (frozen ? " frozen" : ""));
   const top = el("div", "line-top");
@@ -410,9 +450,19 @@ function renderLine(l, frozen = false) {
 
   const nums = el("div", "line-nums");
 
-  // counted first, then what the PO ordered right beside it
+  // With one count the input is the counted figure, so showing a separate
+  // total repeats it on a second line. Only split them once several counts
+  // actually add up to something.
+  const mine = boxes.filter((b) => b.line_id === l.id).sort((a, b) => a.box_no - b.box_no);
+  const inlineCount = mine.length <= 1;
+
   nums.append(el("span", "sm", "Counted"));
-  nums.append(el("span", "counted", num(l.counted_qty)));
+  if (inlineCount) {
+    nums.append(buildCountInput(l, mine[0], row, frozen));
+    if (!frozen) nums.append(buildAddCount(l, row));
+  } else {
+    nums.append(el("span", "counted", num(l.counted_qty)));
+  }
 
   const po = el("input", "po"); po.type = "number"; po.inputMode = "numeric";
   po.value = l.po_qty ?? ""; po.placeholder = "—";
@@ -435,9 +485,9 @@ function renderLine(l, frozen = false) {
   top.append(nums);
   row.append(top);
 
-  // box counts — each carton entered separately, they sum to the counted total
+  // several counts get their own row beneath, summing into the total above
   const bx = el("div", "boxes");
-  row.append(bx);
+  if (!inlineCount) row.append(bx);
 
   // On a Partially Received sheet each size is marked by hand, so there is no
   // doubt about which ones actually came in.
@@ -462,7 +512,7 @@ function renderLine(l, frozen = false) {
     row.append(mark);
   }
 
-  drawBoxes(l, bx, row, frozen);
+  if (!inlineCount) drawBoxes(l, bx, row, frozen);
   refreshLine(l, row);
   return row;
 }
@@ -485,7 +535,7 @@ function drawBoxes(l, bx, row, frozen = false) {
         .select().single();
       if (error) return fail("Saving count", error);
       boxes.push(data);
-      await recount(l, row, bx);
+      await recount(l);
     });
     w.append(i);
     bx.append(w);
@@ -501,7 +551,7 @@ function drawBoxes(l, bx, row, frozen = false) {
       const v = i.value === "" ? 0 : parseInt(i.value, 10);
       const { error } = await sb.from("recv_line_boxes").update({ qty: v }).eq("id", b.id);
       if (error) return fail("Saving count", error);
-      b.qty = v; await recount(l, row, bx);
+      b.qty = v; await recount(l);
     });
     // only offer removal once there is more than one box on the size
     if (mine.length > 1 && !frozen) {
@@ -511,7 +561,7 @@ function drawBoxes(l, bx, row, frozen = false) {
         const { error } = await sb.from("recv_line_boxes").delete().eq("id", b.id);
         if (error) return fail("Removing count", error);
         boxes = boxes.filter((x) => x.id !== b.id);
-        await recount(l, row, bx);
+        await recount(l);
       });
       w.append(i, rm);
     } else {
@@ -530,22 +580,21 @@ function drawBoxes(l, bx, row, frozen = false) {
     const { data, error } = await sb.rpc("recv_add_box", { p_line: l.id });
     if (error) return fail("Adding count", error);
     if (data) boxes.push(data);
-    await recount(l, row, bx);
+    await recount(l);
   });
   bx.append(add);
 }
 
-async function recount(l, row, bx) {
-  // the DB trigger recomputes counted_qty from the boxes; read it back
-  const [{ data }, { data: fresh }] = await Promise.all([
-    sb.from("recv_sheet_lines").select("counted_qty").eq("id", l.id).single(),
-    sb.from("recv_line_boxes").select("*").eq("line_id", l.id).order("box_no"),
-  ]);
-  l.counted_qty = data?.counted_qty ?? 0;
-  boxes = boxes.filter((b) => b.line_id !== l.id).concat(fresh || []);
+/* Read the recomputed total back and redraw. A line can move between the
+   inline single-count layout and the multi-count one, so the group is
+   re-rendered rather than patched in place. */
+async function recount(l) {
+  const { data } = await sb.from("recv_sheet_lines").select("counted_qty").eq("id", l.id).single();
+  const total = data?.counted_qty ?? 0;
+  l.counted_qty = total;
   const idx = lines.findIndex((x) => x.id === l.id);
-  if (idx >= 0) lines[idx].counted_qty = l.counted_qty;
-  drawBoxes(l, bx, row); refreshLine(l, row); renderTotals();
+  if (idx >= 0) lines[idx].counted_qty = total;
+  renderGroups(); renderTotals();
 }
 
 /* Variance: how the count compares with the PO. Always shown once a PO
@@ -571,7 +620,9 @@ function receiptMark(l) {
 }
 
 function refreshLine(l, row) {
-  row.querySelector(".counted").textContent = num(l.counted_qty);
+  // absent in the inline single-count layout, where the input is the total
+  const total = row.querySelector(".counted");
+  if (total) total.textContent = num(l.counted_qty);
   const v = row.querySelector(".var");
   const st = lineState(l);
   v.textContent = st.label;
