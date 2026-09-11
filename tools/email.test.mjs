@@ -37,16 +37,16 @@ check("asks the adjustment-or-more-stock question",
   ex1.text.includes("Would you like me to do an inventory adjustment or is there more stock I am missing?"));
 check("the 'I assume it is the second' aside is gone", !ex1.text.includes("I assume it is the second"));
 check("has the counts header", ex1.text.includes("Here are my counts:"));
-check("Y6 line matches format", ex1.text.includes("Y6 counted 13 PO has 15 off by -2"));
-check("Y8 line matches format", ex1.text.includes("Y8 counted 39 PO has 48 off by -9"));
-check("XS computes -73 (your example said 73)", ex1.text.includes("XS counted 0 PO has 73 off by -73"));
-check("S line matches format", ex1.text.includes("S counted 179 PO has 196 off by -17"));
-check("matching sizes marked good", ex1.text.includes("M was good") && ex1.text.includes("L was good") && ex1.text.includes("2XL was good"));
+check("Y6 line matches format", ex1.text.includes("AC6776-Fuchsia-Y6: counted 13 PO has 15 off by -2"));
+check("Y8 line matches format", ex1.text.includes("AC6776-Fuchsia-Y8: counted 39 PO has 48 off by -9"));
+check("XS computes -73 (your example said 73)", ex1.text.includes("AC6776-Fuchsia-XS: counted 0 PO has 73 off by -73"));
+check("S line matches format", ex1.text.includes("AC6776-Fuchsia-S: counted 179 PO has 196 off by -17"));
+check("matching sizes marked good", ex1.text.includes("AC6776-Fuchsia-M: Good") && ex1.text.includes("AC6776-Fuchsia-L: Good") && ex1.text.includes("AC6776-Fuchsia-2XL: Good"));
 check("every one of the 12 sizes is listed", ["Y6","Y8","Y10","Y14","XS","S","M","L","XL","2XL","3XL","4XL"]
-  .every((s) => new RegExp("^" + s.replace(/\+/g,"\\+") + " ", "m").test(ex1.text)));
+  .every((s) => new RegExp("-" + s.replace(/\+/g,"\\+") + ": ", "m").test(ex1.text)));
 check("discrepancy lines are bolded in html", (ex1.html.match(/<strong>/g) || []).length === 9,
   "expected 9 bold rows, got " + (ex1.html.match(/<strong>/g) || []).length);
-check("'was good' lines are NOT bolded", !/<strong>[^<]*was good/.test(ex1.html));
+check("'was good' lines are NOT bolded", !/<strong>[^<]*: Good/.test(ex1.html));
 
 /* ---------- Example 2: adjustment made ---------- */
 console.log("\nExample 2 — PO 45132, adjustment #34450");
@@ -76,12 +76,12 @@ const multi = composeEmail({ po: "77", adj: "", blocks: [
   { styleColor: "AC6833-Navy",  rows: [row("S", 4, 4)] },
 ]});
 check("multi style-color drops the singular 'item is'", !multi.text.includes("item is"));
-check("multi style-color labels each block", multi.text.includes("AC6833-Ivory") && multi.text.includes("AC6833-Navy"));
-check("block headings bolded in html", multi.html.includes("<strong>AC6833-Ivory</strong>"));
+check("multi style-color labels each block", multi.text.includes("AC6833-Ivory-S: counted 5 PO has 6 off by -1") && multi.text.includes("AC6833-Navy-S: Good"));
+check("block headings bolded in html", multi.html.includes("<strong>AC6833-Ivory-S: counted 5 PO has 6 off by -1</strong>"));
 
 const clean = composeEmail({ po: "88", adj: "", blocks: [{ styleColor: "A-B", rows: [row("M", 5, 5)] }] });
 check("all-matched subject differs", clean.subject === "PO# 88 counts matched");
-check("all-matched body still lists every size", clean.text.includes("M was good"));
+check("all-matched body still lists every size", clean.text.includes("A-B-M: Good"));
 check("no plural voice anywhere", !/\b(We|we|us|our)\b/.test(ex1.text + ex2.text + multi.text + clean.text));
 
 /* ---------- one-size items never print a size ---------- */
@@ -97,11 +97,11 @@ const osEmail = composeEmail({
 console.log("\n--- body ---\n" + osEmail.text + "\n");
 check("no bare OS anywhere in the body", !/\bOS\b/.test(osEmail.text), osEmail.text);
 check("no OSFA / 1SZ either", !/\b(OSFA|OSFM|1SZ|ADJUSTABLE)\b/i.test(osEmail.text));
-check("matched one-size folds onto the style line", osEmail.text.includes("AC92-Purple was good"));
+check("matched one-size folds onto the style line", osEmail.text.includes("AC92-Purple: Good"));
 check("off one-size folds onto the style line",
-  osEmail.text.includes("AC97-Crystal AB counted 822 PO has 750 off by 72"));
+  osEmail.text.includes("AC97-Crystal AB: counted 822 PO has 750 off by 72"));
 check("negative one-size keeps its sign",
-  osEmail.text.includes("AC261 counted 1975 PO has 2000 off by -25"));
+  osEmail.text.includes("AC261: counted 1975 PO has 2000 off by -25"));
 check("one-size discrepancies still bold", (osEmail.html.match(/<strong>/g) || []).length === 3,
   "expected 3 bold rows, got " + (osEmail.html.match(/<strong>/g) || []).length);
 
@@ -109,15 +109,38 @@ check("one-size discrepancies still bold", (osEmail.html.match(/<strong>/g) || [
 const sized = composeEmail({ po: "45032", adj: "", blocks: [
   { styleColor: "AC6776-Fuchsia", rows: [row("XS", 0, 73), row("S", 179, 196), row("M", 88, 88)] },
 ]});
-check("real sizes still printed", sized.text.includes("XS counted 0 PO has 73 off by -73")
-  && sized.text.includes("M was good"));
+check("real sizes still printed", sized.text.includes("AC6776-Fuchsia-XS: counted 0 PO has 73 off by -73")
+  && sized.text.includes("AC6776-Fuchsia-M: Good"));
 
 /* a mixed block drops only the one-size row's label */
 const mixed2 = composeEmail({ po: "99", adj: "", blocks: [
   { styleColor: "X-Y", rows: [row("OS", 5, 6), row("L", 4, 4)] },
 ]});
 check("mixed block: one-size row loses its label, real size keeps it",
-  mixed2.text.includes("counted 5 PO has 6 off by -1") && mixed2.text.includes("L was good"));
+  mixed2.text.includes("X-Y: counted 5 PO has 6 off by -1") && mixed2.text.includes("X-Y-L: Good"));
+
+/* ---------- only discrepancy lines are ever bold ---------- */
+console.log("\nBolding is reserved for discrepancies");
+const boldCheck = (name, e) => {
+  const bolds = [...e.html.matchAll(/<strong>(.*?)<\/strong>/g)].map((m) => m[1]);
+  // both wordings describe a discrepancy: "off by -2" and "count was off -2"
+  const notDiscrepancies = bolds.filter((b) => !/off by |was off /.test(b));
+  check(`${name}: nothing bold except discrepancy lines`, notDiscrepancies.length === 0,
+    "bolded without a discrepancy: " + JSON.stringify(notDiscrepancies));
+};
+const blocksMix = [
+  { styleColor: "AC92-Purple",    rows: [row("OS", 300, 300)] },
+  { styleColor: "AC6776-Fuchsia", rows: [row("XS", 0, 73), row("M", 88, 88)] },
+];
+boldCheck("discrepancy email", composeEmail({ po: "1", adj: "", blocks: blocksMix }));
+boldCheck("adjustment email (one off)", composeEmail({ po: "1", adj: "34450", blocks: blocksMix }));
+boldCheck("adjustment email (several off)", composeEmail({ po: "1", adj: "34450", blocks: [
+  { styleColor: "A-B", rows: [row("S", 1, 2), row("M", 3, 5)] } ]}));
+boldCheck("all-matched email", composeEmail({ po: "1", adj: "", blocks: [
+  { styleColor: "A-B", rows: [row("M", 5, 5)] } ]}));
+boldCheck("multi style-color", composeEmail({ po: "1", adj: "", blocks: [
+  { styleColor: "AC6833-Ivory", rows: [row("S", 5, 6)] },
+  { styleColor: "AC6833-Navy",  rows: [row("S", 4, 4)] } ]}));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

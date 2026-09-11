@@ -751,33 +751,20 @@ export function composeEmail({ po, adj, greeting = "Hi Tristan,", blocks }) {
   text.push(intro, "", "Here are my counts:");
   html.push(esc(intro), "", esc("Here are my counts:"));
 
+  // One line per entry: style-color, the size if it has a meaningful one,
+  // then the result. "OS" and friends are left out - see ONE_SIZE above.
   blocks.forEach((b) => {
-    const body = (r) => r.d === 0
-      ? "was good"
-      : `counted ${r.counted} PO has ${r.po} off by ${r.d}`;
-
-    // A one-size style has nothing worth listing under its own name, so the
-    // whole thing goes on one line: "AC92-Purple was good".
-    const lone = b.rows.length === 1 && isOneSize(b.rows[0].size);
-    if (lone) {
-      const r = b.rows[0];
-      const l = single ? body(r) : `${b.styleColor} ${body(r)}`;
-      text.push("", l);
-      html.push("", r.d === 0 ? esc(l) : "<strong>" + esc(l) + "</strong>");
-      return;
-    }
-
-    if (!single) {
-      text.push("", b.styleColor);
-      html.push("", "<strong>" + esc(b.styleColor) + "</strong>");
-    }
     b.rows.forEach((r) => {
-      // drop the size word for one-size rows even in a mixed block
-      const l = isOneSize(r.size) ? body(r) : `${r.size} ${body(r)}`;
+      const label = isOneSize(r.size) ? b.styleColor : `${b.styleColor}-${r.size}`;
+      const result = r.d === 0
+        ? "Good"
+        : `counted ${r.counted} PO has ${r.po} off by ${r.d}`;
+      const l = `${label}: ${result}`;
       text.push(l);
       html.push(r.d === 0 ? esc(l) : "<strong>" + esc(l) + "</strong>");
     });
   });
+
   return { subject, text: text.join("\n"), html: html.join("<br>") };
 }
 
