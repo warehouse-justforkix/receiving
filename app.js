@@ -363,6 +363,10 @@ function sheetLocked() {
 }
 
 function paintLockButton() {
+  // adding a style is an edit, so the whole row goes away on a saved sheet
+  const addRow = $("addGroupRow");
+  if (addRow) addRow.hidden = sheetLocked();
+
   const b = $("lockSheetBtn");
   if (!b) return;
   if (!groups.length) { b.hidden = true; return; }
