@@ -255,10 +255,13 @@ function renderTotals() {
   const off = withPo.filter((l) => (l.counted_qty || 0) !== l.po_qty);
   const counted = lines.reduce((n, l) => n + (l.counted_qty || 0), 0);
   const po = withPo.reduce((n, l) => n + l.po_qty, 0);
+  // only sizes somebody actually entered a count against - a style-color adds
+  // its whole size run, and most of those never get touched on a given truck
+  const sizesCounted = lines.filter((l) => boxes.some((b) => b.line_id === l.id)).length;
   const box = $("sheetTotals"); box.textContent = "";
   const tile = (k, v, cls) => { const t = el("div", "tile" + (cls ? " " + cls : "")); t.append(el("p", "k", k), el("p", "v", String(v))); return t; };
   box.append(
-    tile("Sizes", lines.length),
+    tile("Sizes counted", sizesCounted),
     tile("Counted", counted),
     tile("PO qty", withPo.length ? po : "—"),
     tile("Off", off.length, off.length ? "off" : "ok"),
