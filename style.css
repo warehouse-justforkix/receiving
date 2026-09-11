@@ -261,6 +261,27 @@ label.check input { width:20px; height:20px; min-height:0; }
 
 .notif-panel { margin-top:16px; }
 
+
+/* ---------- ALL CAPS ----------
+   Karley's request: the whole app renders in caps, except the generated
+   email draft, which must stay as written because it is sent to a vendor.
+   text-transform is display-only - stored data, and the text copied to the
+   clipboard, are unaffected. */
+.app, .auth-gate { text-transform: uppercase; }
+/* form controls do not reliably inherit text-transform, so name them */
+.app button, .app input, .app select, .app textarea,
+.auth-gate button, .auth-gate input, .auth-gate select, .auth-gate textarea
+  { text-transform: uppercase; }
+.app input::placeholder, .auth-gate input::placeholder,
+.app textarea::placeholder { text-transform: uppercase; }
+
+/* the email draft is the one exception */
+.email-subject,
+.email-body,
+.email-body *,
+.email-subject *, 
+#emailOut .lbl + * { text-transform: none; }
+
 /* ---------- toast ---------- */
 .toast {
   position:fixed; left:50%; bottom:22px; transform:translateX(-50%);
