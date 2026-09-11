@@ -323,14 +323,14 @@ function renderGroups() {
   groups.forEach((g) => {
     const gl = lines.filter((l) => l.group_id === g.id);
     const off = gl.filter((l) => l.po_qty != null && (l.counted_qty || 0) !== l.po_qty).length;
+    const receiving = sheet?.status === "partial" || sheet?.status === "closed";
     const sizesCounted = gl.filter((l) => boxes.some((b) => b.line_id === l.id)).length;
     const counted = gl.reduce((n, l) => n + (l.counted_qty || 0), 0);
 
-    const card = el("div", "group" + (g.saved ? " saved" : ""));
+    const card = el("div", "group" + (g.saved ? " saved" : "") + (g.saved && receiving ? " is-received" : ""));
     const head = el("div", "group-head");
     const left = el("div");
     left.append(el("h3", null, g.style_color));
-    const receiving = sheet?.status === "partial" || sheet?.status === "closed";
     const recv = gl.filter((l) => lineState(l).key === "received").length;
     const shortOf = gl.filter((l) => ["short", "none", "notreceived"].includes(lineState(l).key)).length;
     left.append(el("p", "st", g.saved
@@ -346,7 +346,10 @@ function renderGroups() {
 
     const actions = el("div", "group-head-actions");
     if (g.saved) {
-      actions.append(el("span", "saved-badge", "\u2713 Received"));
+      // "Received" is only true once receiving has started; before that a
+      // saved style just means its counts are locked in
+      actions.append(el("span", "saved-badge" + (receiving ? "" : " counted"),
+        receiving ? "\u2713 Received" : "\u2713 Counted"));
       const edit = el("button", "btn ghost sm", "Edit");
       edit.addEventListener("click", () => setGroupSaved(g, false));
       actions.append(edit);
