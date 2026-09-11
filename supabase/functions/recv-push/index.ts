@@ -3,11 +3,12 @@
 // so no new secrets are needed in this Supabase project.
 //
 // Deploy from the Supabase dashboard (Edge Functions -> Deploy a new function ->
-// Via Editor), name it exactly `recv-push`, and turn "Verify JWT" OFF — the
+// Via Editor), name it exactly `recv-push`, and turn "Verify JWT" OFF - the
 // shared x-push-secret header is the auth for this endpoint.
 //
 // Secrets read here, all already set for the Hub:
-//   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, PUSH_TRIGGER_SECRET
+//   VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, and RECV_PUSH_SECRET
+//   (PUSH_TRIGGER_SECRET from the Hub is also accepted)
 //
 // Called by the Database Webhooks that db/webhooks.sql installs on
 // recv_comments (insert) and recv_sheets (status change).
@@ -19,17 +20,40 @@ const admin = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
-webpush.setVapidDetails(
-  "mailto:karley@justforkix.com",
-  Deno.env.get("VAPID_PUBLIC_KEY")!,
-  Deno.env.get("VAPID_PRIVATE_KEY")!,
-);
+// Configured lazily inside the handler: calling setVapidDetails at module
+// scope with a missing key throws, which Supabase reports only as BOOT_ERROR.
+let vapidReady = false;
+function initVapid(): string | null {
+  if (vapidReady) return null;
+  const pub = Deno.env.get("VAPID_PUBLIC_KEY");
+  const priv = Deno.env.get("VAPID_PRIVATE_KEY");
+  if (!pub || !priv) {
+    return "missing secret: " + (!pub ? "VAPID_PUBLIC_KEY " : "") + (!priv ? "VAPID_PRIVATE_KEY" : "");
+  }
+  webpush.setVapidDetails("mailto:karley@justforkix.com", pub, priv);
+  vapidReady = true;
+  return null;
+}
 
 const APP_URL = "https://warehouse-justforkix.github.io/receiving/";
 
 Deno.serve(async (req) => {
-  if (req.headers.get("x-push-secret") !== Deno.env.get("PUSH_TRIGGER_SECRET")) {
+  // Accept either our own secret (set by Karley, readable by her) or the Hub's
+  // existing PUSH_TRIGGER_SECRET, so this works whether or not the Hub webhook
+  // could be cloned.
+  const given = req.headers.get("x-push-secret");
+  const mine = Deno.env.get("RECV_PUSH_SECRET");
+  const hub  = Deno.env.get("PUSH_TRIGGER_SECRET");
+  const okSecret = (!!mine && given === mine) || (!!hub && given === hub);
+  if (!okSecret) {
     return new Response("forbidden", { status: 403 });
+  }
+
+  const vapidErr = initVapid();
+  if (vapidErr) {
+    return new Response(JSON.stringify({ error: vapidErr }), {
+      status: 500, headers: { "content-type": "application/json" },
+    });
   }
 
   const payload = await req.json().catch(() => ({}));
@@ -53,13 +77,13 @@ Deno.serve(async (req) => {
     body = String(rec.body ?? "").slice(0, 140);
     skipPersonId = rec.author_id ?? null;   // don't notify the author of their own comment
   } else if (table === "recv_sheets") {
-    // only on the transition INTO submitted — never on later edits to a submitted sheet
+    // only on the transition INTO submitted - never on later edits to a submitted sheet
     if (rec.status !== "submitted" || old?.status === "submitted") {
       return new Response(JSON.stringify({ skipped: true, reason: "not a submit transition" }), {
         headers: { "content-type": "application/json" },
       });
     }
-    title = `Sheet submitted — PO# ${rec.po_number ?? "?"}`;
+    title = `Sheet submitted - PO# ${rec.po_number ?? "?"}`;
     body = String(rec.title ?? "").slice(0, 140);
   } else if (payload.title) {
     title = String(payload.title);
