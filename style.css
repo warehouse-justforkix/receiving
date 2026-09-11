@@ -405,6 +405,9 @@ details.how li { font-size:12.5px; line-height:1.45; }
 .app, .app * { text-transform: uppercase; }
 .app option, .app ::placeholder { text-transform: uppercase; }
 .toast { text-transform: uppercase; }
+/* Explanatory text under a panel heading is prose, not a label - sentence
+   case, the same as the Procedure and Admin descriptions. */
+.panel > p.muted, details.collapsible .panel-body > p.muted { text-transform: none; }
 /* the sheets filter checkbox reads as words, not a label: Title Case */
 .filters label.check { text-transform: capitalize; }
 
