@@ -607,19 +607,19 @@ export function composeEmail({ po, adj, greeting = "Hi Tristan,", blocks }) {
     if (offRows.length === 1) {
       const o = offRows[0];
       const dir = o.d < 0 ? "subtracting" : "adding";
-      const line = `On PO ${po} we received all items in full but we were off by ${Math.abs(o.d)} in size ${o.size}. ` +
-        `We counted ${o.counted}, the PO listed ${o.po} purchased, count was off ${o.d}. ` +
-        `We did an inventory adjustment ${dir} ${Math.abs(o.d)} for the difference. ` +
+      const line = `On PO ${po} I received all items in full but was off by ${Math.abs(o.d)} in size ${o.size}. ` +
+        `I counted ${o.counted}, the PO listed ${o.po} purchased, count was off ${o.d}. ` +
+        `I did an inventory adjustment ${dir} ${Math.abs(o.d)} for the difference. ` +
         `Inventory Adjustment number is #${adj} if needed.`;
       text.push(line); html.push(esc(line));
     } else {
-      const head = `On PO ${po} we received all items in full but we were off in ${offRows.length} sizes:`;
+      const head = `On PO ${po} I received all items in full but was off in ${offRows.length} sizes:`;
       text.push(head); html.push(esc(head));
       offRows.forEach((r) => {
         const l = `${r.size} counted ${r.counted}, the PO listed ${r.po} purchased, count was off ${r.d}`;
         text.push(l); html.push("<strong>" + esc(l) + "</strong>");
       });
-      const tail = `We did an inventory adjustment for the difference. Inventory Adjustment number is #${adj} if needed.`;
+      const tail = `I did an inventory adjustment for the difference. Inventory Adjustment number is #${adj} if needed.`;
       text.push("", tail); html.push("", esc(tail));
     }
     return { subject, text: text.join("\n"), html: html.join("<br>") };
@@ -632,13 +632,13 @@ export function composeEmail({ po, adj, greeting = "Hi Tristan,", blocks }) {
 
   const intro = offRows.length
     ? (single
-        ? `We are working on PO# ${po} item is ${single} and have these discrepancies.  ` +
-          `Would you like us to do an inventory adjustment or is there more stock we are missing?`
-        : `We are working on PO# ${po} and have these discrepancies.  ` +
-          `Would you like us to do an inventory adjustment or is there more stock we are missing?`)
-    : `We finished PO# ${po}` + (single ? ` (${single})` : "") + ` and every size matched the PO.`;
-  text.push(intro, "", "Here are our counts:");
-  html.push(esc(intro), "", esc("Here are our counts:"));
+        ? `I am working on PO# ${po} item is ${single} and have these discrepancies.  ` +
+          `Would you like me to do an inventory adjustment or is there more stock I am missing?`
+        : `I am working on PO# ${po} and have these discrepancies.  ` +
+          `Would you like me to do an inventory adjustment or is there more stock I am missing?`)
+    : `I finished PO# ${po}` + (single ? ` (${single})` : "") + ` and every size matched the PO.`;
+  text.push(intro, "", "Here are my counts:");
+  html.push(esc(intro), "", esc("Here are my counts:"));
 
   blocks.forEach((b) => {
     if (!single) {
@@ -660,8 +660,15 @@ export function composeEmail({ po, adj, greeting = "Hi Tristan,", blocks }) {
 
 $("genEmailBtn").addEventListener("click", buildEmail);
 
+let emailEdited = false;
+["emailSubject", "emailBody"].forEach((id) => {
+  $(id)?.addEventListener("input", () => { emailEdited = true; });
+});
+
 function buildEmail() {
   if (!sheet) return;
+  if (emailEdited &&
+      !confirm("Rebuilding replaces the draft and loses your edits. Rebuild anyway?")) return;
   const po  = ($("sheetPo").value  || sheet.po_number || "").trim();
   const adj = ($("sheetAdj").value || "").trim();
 
@@ -683,6 +690,7 @@ function buildEmail() {
 
   $("emailSubject").textContent = out.subject;
   $("emailBody").innerHTML = out.html;
+  emailEdited = false;
   $("emailOut").hidden = false;
   $("copyEmailBtn").hidden = false;
   if (!settings.email_to) toast("Draft built. Set the recipient in Admin before sending.");
@@ -690,20 +698,25 @@ function buildEmail() {
 
 $("copyEmailBtn").addEventListener("click", async () => {
   const to = settings.email_to || "", cc = settings.email_cc || "";
+  // read what is on screen, not what was generated - the boxes are editable
+  const subject = ($("emailSubject").innerText || "").trim();
+  const text = $("emailBody").innerText || "";
+  const html = $("emailBody").innerHTML || "";
   const header = (to ? `To: ${to}\n` : "") + (cc ? `Cc: ${cc}\n` : "") +
-    `Subject: ${buildEmail._subject}\n\n`;
+    `Subject: ${subject}\n\n`;
   try {
     if (navigator.clipboard?.write && window.ClipboardItem) {
       await navigator.clipboard.write([new ClipboardItem({
-        "text/plain": new Blob([header + buildEmail._text], { type: "text/plain" }),
-        "text/html":  new Blob([buildEmail._html], { type: "text/html" }),
+        "text/plain": new Blob([header + text], { type: "text/plain" }),
+        "text/html":  new Blob([html], { type: "text/html" }),
       })]);
     } else {
-      await navigator.clipboard.writeText(header + buildEmail._text);
+      await navigator.clipboard.writeText(header + text);
     }
     toast("Draft copied — bold survives a paste into Gmail");
   } catch (e) { fail("Copying", e); }
 });
+
 
 /* ---------------- comments ---------------- */
 async function loadComments() {

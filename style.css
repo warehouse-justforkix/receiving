@@ -243,6 +243,12 @@ label.check input { width:20px; height:20px; min-height:0; }
 /* a button sitting directly in a panel needs separating from the text above */
 .panel > button, .panel > .btn { margin-top:15px; }
 .email-actions { display:flex; gap:8px; margin-top:10px; flex-wrap:wrap; }
+/* the draft is editable in place before copying */
+.editable { cursor:text; }
+.editable:focus { outline:2.5px solid var(--pink); outline-offset:2px; }
+.editable:hover { box-shadow:inset 0 0 0 1.5px var(--line); }
+.email-body.editable { min-height:120px; white-space:pre-wrap; font-family:var(--body); }
+.edit-hint { margin-top:7px !important; }
 .email-subject { font-family:var(--display); font-weight:700; background:var(--wash); padding:9px 11px; border-radius:8px; }
 .email-body {
   font-family:var(--body); font-size:13.5px; white-space:pre-wrap; margin:0;
@@ -440,7 +446,7 @@ details.how li { font-size:12.5px; line-height:1.45; }
 .toast { text-transform: uppercase; }
 /* Explanatory text under a panel heading is prose, not a label - sentence
    case, the same as the Procedure and Admin descriptions. */
-.panel > p.muted, details.collapsible .panel-body > p.muted { text-transform: none; }
+.panel > p.muted, details.collapsible .panel-body > p.muted, .edit-hint { text-transform: none; }
 /* What people actually write stays as they wrote it - both the posted
    comment and the box it is typed into. */
 .comment .body, #commentBody, #commentBody::placeholder { text-transform: none; }

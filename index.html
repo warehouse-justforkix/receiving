@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="RECEIVING">
-<link rel="stylesheet" href="style.css?v=28">
+<link rel="stylesheet" href="style.css?v=30">
 </head>
 <body>
 
@@ -143,9 +143,10 @@
         </div>
         <div id="emailOut" hidden>
           <label class="lbl">Subject</label>
-          <div class="email-subject" id="emailSubject"></div>
+          <div class="email-subject editable" id="emailSubject" contenteditable="true" spellcheck="false" role="textbox" aria-label="Email subject"></div>
           <label class="lbl">Body</label>
-          <pre class="email-body" id="emailBody"></pre>
+          <div class="email-body editable" id="emailBody" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Email body"></div>
+          <p class="muted sm edit-hint">Both boxes are editable — change anything you like before copying.</p>
         </div>
       </div>
 
@@ -254,6 +255,6 @@
 </div>
 
 <div class="toast" id="toast" hidden></div>
-<script type="module" src="app.js?v=28"></script>
+<script type="module" src="app.js?v=30"></script>
 </body>
 </html>

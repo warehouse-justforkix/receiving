@@ -31,11 +31,11 @@ console.log("\n--- subject ---\n" + ex1.subject + "\n--- body ---\n" + ex1.text 
 
 check("subject is 'PO# 45032 Discrepancies'", ex1.subject === "PO# 45032 Discrepancies", ex1.subject);
 check("opens with the greeting", ex1.text.startsWith("Hi Tristan,\n\n"));
-check("intro names the single item", ex1.text.includes("item is AC6776-Fuchsia and have these discrepancies."));
+check("intro names the single item", ex1.text.includes("I am working on PO# 45032 item is AC6776-Fuchsia and have these discrepancies."));
 check("asks the adjustment-or-more-stock question",
-  ex1.text.includes("Would you like us to do an inventory adjustment or is there more stock we are missing?"));
+  ex1.text.includes("Would you like me to do an inventory adjustment or is there more stock I am missing?"));
 check("the 'I assume it is the second' aside is gone", !ex1.text.includes("I assume it is the second"));
-check("has the counts header", ex1.text.includes("Here are our counts:"));
+check("has the counts header", ex1.text.includes("Here are my counts:"));
 check("Y6 line matches format", ex1.text.includes("Y6 counted 13 PO has 15 off by -2"));
 check("Y8 line matches format", ex1.text.includes("Y8 counted 39 PO has 48 off by -9"));
 check("XS computes -73 (your example said 73)", ex1.text.includes("XS counted 0 PO has 73 off by -73"));
@@ -59,9 +59,9 @@ console.log("\n--- subject ---\n" + ex2.subject + "\n--- body ---\n" + ex2.text 
 
 check("subject is 'PO 45132' (no # and no 'Discrepancies')", ex2.subject === "PO 45132", ex2.subject);
 check("exact Example 2 wording", ex2.text ===
-  "On PO 45132 we received all items in full but we were off by 1 in size XS. " +
-  "We counted 83, the PO listed 84 purchased, count was off -1. " +
-  "We did an inventory adjustment subtracting 1 for the difference. " +
+  "On PO 45132 I received all items in full but was off by 1 in size XS. " +
+  "I counted 83, the PO listed 84 purchased, count was off -1. " +
+  "I did an inventory adjustment subtracting 1 for the difference. " +
   "Inventory Adjustment number is #34450 if needed.", ex2.text);
 check("says 'subtracting' when short", ex2.text.includes("subtracting 1"));
 
@@ -81,6 +81,7 @@ check("block headings bolded in html", multi.html.includes("<strong>AC6833-Ivory
 const clean = composeEmail({ po: "88", adj: "", blocks: [{ styleColor: "A-B", rows: [row("M", 5, 5)] }] });
 check("all-matched subject differs", clean.subject === "PO# 88 counts matched");
 check("all-matched body still lists every size", clean.text.includes("M was good"));
+check("no plural voice anywhere", !/\b(We|we|us|our)\b/.test(ex1.text + ex2.text + multi.text + clean.text));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);
