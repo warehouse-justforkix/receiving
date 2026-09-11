@@ -54,18 +54,15 @@ code { font-family:ui-monospace,Menlo,monospace; font-size:0.9em; background:var
 /* ---------- buttons + inputs ---------- */
 .btn {
   font-family:var(--display); font-size:14px; font-weight:700;
-  padding:11px 16px; min-height:44px; border:1.5px solid var(--line);
+  padding:8px 16px; min-height:37px; border:1.5px solid var(--line);
   background:var(--card); color:var(--ink); border-radius:var(--r);
   cursor:pointer; transition:transform .06s ease;
 }
 .btn:active { transform:translateY(1px); }
-/* Filled maroon buttons sit lower than the outlined ones - the fill already
-   gives them weight, so they do not need the height as well. */
-.btn.primary { background:var(--plum); border-color:var(--plum); color:#fff;
-  min-height:37px; padding:8px 16px; }
-.btn.primary.sm, .btn.sm.primary { min-height:31px; padding:6px 12px; }
+/* One height for every button, filled or outlined: 37px, 31px when small. */
+.btn.primary { background:var(--plum); border-color:var(--plum); color:#fff; }
 .btn.ghost { background:transparent; }
-.btn.sm { font-size:12.5px; padding:7px 11px; min-height:36px; }
+.btn.sm { font-size:12.5px; padding:6px 12px; min-height:31px; }
 .btn.danger { color:var(--coral); border-color:var(--coral); }
 .btn:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
   outline:2.5px solid var(--pink); outline-offset:2px;
@@ -237,14 +234,14 @@ label.check input { width:20px; height:20px; min-height:0; }
   font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:var(--faint);
   background:var(--card); padding:0 3px;
 }
-.box-add { min-height:44px; width:44px; font-size:19px; font-weight:800; padding:0; }
+.box-add { min-height:37px; width:37px; font-size:17px; font-weight:800; padding:0; }
 /* per-size Received / Not received, shown only while Partially Received */
 .recv-mark { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; }
 .recv-mark-label {
   font-family:var(--display); font-size:9.5px; font-weight:700; letter-spacing:0.09em;
   text-transform:uppercase; color:var(--faint);
 }
-.recv-btn { min-height:38px; padding:7px 13px; font-size:12.5px; }
+.recv-btn { min-height:31px; padding:6px 13px; font-size:12.5px; }
 .recv-btn.on.yes { background:var(--blue);  border-color:var(--blue);  color:#fff; }
 .recv-btn.on.no  { background:var(--coral); border-color:var(--coral); color:#fff; }
 
