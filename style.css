@@ -54,7 +54,8 @@ code { font-family:ui-monospace,Menlo,monospace; font-size:0.9em; background:var
 /* ---------- buttons + inputs ---------- */
 .btn {
   font-family:var(--display); font-size:14px; font-weight:700;
-  padding:8px 16px; min-height:37px; border:1.5px solid var(--line);
+  padding:0 16px; height:34px; min-height:34px; border:1.5px solid var(--line);
+  display:inline-flex; align-items:center; justify-content:center;
   background:var(--card); color:var(--ink); border-radius:var(--r);
   cursor:pointer; transition:transform .06s ease;
 }
@@ -62,7 +63,7 @@ code { font-family:ui-monospace,Menlo,monospace; font-size:0.9em; background:var
 /* One height for every button, filled or outlined: 37px, 31px when small. */
 .btn.primary { background:var(--plum); border-color:var(--plum); color:#fff; }
 .btn.ghost { background:transparent; }
-.btn.sm { font-size:12.5px; padding:6px 12px; min-height:31px; }
+.btn.sm { font-size:12.5px; padding:0 12px; }
 .btn.danger { color:var(--coral); border-color:var(--coral); }
 .btn:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
   outline:2.5px solid var(--pink); outline-offset:2px;
@@ -234,14 +235,14 @@ label.check input { width:20px; height:20px; min-height:0; }
   font-weight:800; letter-spacing:0.08em; text-transform:uppercase; color:var(--faint);
   background:var(--card); padding:0 3px;
 }
-.box-add { min-height:37px; width:37px; font-size:17px; font-weight:800; padding:0; }
+.box-add { width:34px; font-size:17px; font-weight:800; padding:0; }
 /* per-size Received / Not received, shown only while Partially Received */
 .recv-mark { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:10px; }
 .recv-mark-label {
   font-family:var(--display); font-size:9.5px; font-weight:700; letter-spacing:0.09em;
   text-transform:uppercase; color:var(--faint);
 }
-.recv-btn { min-height:31px; padding:6px 13px; font-size:12.5px; }
+.recv-btn { padding:0 13px; font-size:12.5px; }
 .recv-btn.on.yes { background:var(--blue);  border-color:var(--blue);  color:#fff; }
 .recv-btn.on.no  { background:var(--coral); border-color:var(--coral); color:#fff; }
 
@@ -438,7 +439,7 @@ details.how li { font-size:12.5px; line-height:1.45; }
 .modal .email-subject, .modal .email-body { text-transform: none; }
 
 /* ---------- notifications control in the top bar ---------- */
-.notif-btn { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+.notif-btn { gap:6px; white-space:nowrap; }
 .notif-btn.on  { border-color:var(--green); color:var(--green); }
 .notif-btn.off { border-color:var(--line);  color:var(--slate); }
 .notif-btn.blocked { border-color:var(--coral); color:var(--coral); }
