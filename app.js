@@ -1236,4 +1236,43 @@ $("receivedCopy")?.addEventListener("click", async () => {
 });
 
 
+/* ---------------- delete a sheet (admins only) ---------------- */
+/* The database enforces this too: the recv_sheets delete policy requires
+   recv_is_admin(), so hiding the button is convenience, not the control. */
+$("deleteSheetBtn")?.addEventListener("click", () => {
+  if (!sheet || !isAdmin) return;
+  const sizes = lines.length;
+  const counted = lines.reduce((n, l) => n + (l.counted_qty || 0), 0);
+  $("deleteWhat").textContent =
+    `"${sheet.title || "(untitled)"}" - PO# ${sheet.po_number || "-"}, ` +
+    `${groups.length} style-color${groups.length === 1 ? "" : "s"}, ` +
+    `${sizes} size row${sizes === 1 ? "" : "s"}, ${counted} counted.`;
+  $("deleteModal").hidden = false;
+  $("deleteCancel").focus();
+});
+
+function closeDeleteModal() { $("deleteModal").hidden = true; }
+$("deleteCancel")?.addEventListener("click", closeDeleteModal);
+$("deleteModal")?.addEventListener("click", (e) => {
+  if (e.target === $("deleteModal")) closeDeleteModal();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("deleteModal")?.hidden) closeDeleteModal();
+});
+
+$("deleteConfirm")?.addEventListener("click", async () => {
+  if (!sheet) return;
+  $("deleteConfirm").disabled = true;
+  const { error } = await sb.from("recv_sheets").delete().eq("id", sheet.id);
+  $("deleteConfirm").disabled = false;
+  if (error) { closeDeleteModal(); return fail("Deleting sheet", error); }
+  closeDeleteModal();
+  toast("Sheet deleted");
+  sheet = null; groups = []; lines = []; boxes = [];
+  show("sheets");
+  document.querySelectorAll(".tab").forEach((t) => t.classList.toggle("active", t.dataset.view === "sheets"));
+  loadSheets();
+});
+
+
 boot();

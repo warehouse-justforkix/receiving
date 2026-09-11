@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="RECEIVING">
-<link rel="stylesheet" href="style.css?v=15">
+<link rel="stylesheet" href="style.css?v=16">
 </head>
 <body>
 
@@ -99,7 +99,10 @@
 
   <!-- ---------- one sheet ---------- -->
   <section class="view" id="view-sheet" hidden>
-    <button class="btn ghost sm back" id="backToList">&larr; All sheets</button>
+    <div class="sheet-topbar">
+      <button class="btn ghost sm back" id="backToList">&larr; All sheets</button>
+      <button class="btn ghost sm danger admin-only" id="deleteSheetBtn" hidden>Delete sheet</button>
+    </div>
     <div class="sheet-head">
       <input class="sheet-title" id="sheetTitle" placeholder="Sheet title">
       <div class="sheet-meta">
@@ -216,6 +219,18 @@
   <p class="version" id="version"></p>
 </div>
 
+<div class="modal-back" id="deleteModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="deleteTitle">
+    <h3 id="deleteTitle">Delete this sheet?</h3>
+    <p class="muted sm" id="deleteWhat"></p>
+    <p class="muted sm"><strong>This cannot be undone.</strong> The counts, box entries, comments and change log for this sheet are deleted with it.</p>
+    <div class="modal-actions">
+      <button class="btn danger-solid" id="deleteConfirm">Delete permanently</button>
+      <button class="btn ghost" id="deleteCancel">Keep it</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-back" id="receivedModal" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="receivedTitle">
     <h3 id="receivedTitle">Let Karley know?</h3>
@@ -232,6 +247,6 @@
 </div>
 
 <div class="toast" id="toast" hidden></div>
-<script type="module" src="app.js?v=15"></script>
+<script type="module" src="app.js?v=16"></script>
 </body>
 </html>

@@ -110,7 +110,9 @@ label.check input { width:20px; height:20px; min-height:0; }
 
 .view-head { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
 .view-head h2 { font-size:19px; font-weight:800; }
-.back { margin-bottom:10px; }
+.sheet-topbar { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+.back { margin-bottom:0; }
+.btn.danger-solid { background:var(--coral); border-color:var(--coral); color:#fff; }
 
 /* ---------- filters ---------- */
 .filters { display:flex; gap:9px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
