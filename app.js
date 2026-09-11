@@ -662,7 +662,23 @@ const DEFAULT_DOC = [
   { title: "Sort by style number, then color, then size", body: "Break the cartons down and group like with like, in that order: all of one style number together, split by color inside the style, split by size inside the color. note: cartons can be mixed." },
   { title: "Count every size stack and write it down", body: "Count each style + color + size stack and record the number on the count sheet as you go.", flag: "Don't look up the PO quantities until your counts are written down. If you know the number you're supposed to get, you'll find that number. Write your count first, then go to step 4.", critical: true },
   { title: "Find the PO in NetSuite", body: "Look this up through putting the PO# on the box into the search bar on NetSuite and selecting the entry that says purchase order or if the PO# is unknown go to items view in NetSuite type in the style#-color you are looking for, once it loads click any size you are looking to receive by the view button → then go to related records and under PO search look for the most recent PO#." },
-  { title: "Match your counts to the PO#", body: "Step A — if anything is off, email Karley and Tristan with the discrepancy and wait for direction. Step B — if everything matches receive it and move to the next step." },
+  {
+    title: "Match your counts to the PO#",
+    kind: "decision",
+    stepA: {
+      heading: "Something's off — report it, then wait",
+      body: "Email Karley and Tristan with the discrepancy. Don't adjust anything and don't guess at the fix — wait for one of them to tell you which way to go.",
+      sendLabel: "Put this in the email — one line per size that's off",
+      fields: ["PO #", "Style #", "Color", "Size", "My count", "PO qty", "Over / short by"],
+    },
+    lanes: [
+      { tone: "adjust", tag: "If Tristan says adjust", heading: "Make the inventory adjustment",
+        body: ["Enter the adjustment in NetSuite so the system matches what is physically on the floor. Reference the PO number and the reason on the adjustment so it can be traced later.", "Then continue to step 6."] },
+      { tone: "hold", tag: "If Tristan says hold", heading: "Leave the shortage open",
+        body: ["More stock is on its way. Do not adjust — leave the outstanding quantity open on the PO so the rest of the shipment can be received against it.", "Shelve what did arrive, and keep this sheet with the PO until the balance lands."] },
+    ],
+    stepB: "If everything matches, receive it and move to the next step.",
+  },
   { title: "Box it, label it, shelve it — same day", body: "Everything you receive gets boxed, labeled and put on its shelf with bin location as soon as it's received. Box labels are four lines: SKU · item name · color · size → ask Karley to print these.", flag: "* if the item is existing refill boxes" },
   { title: "Release backorders to the queue → let Karley know of any shipments received.", body: "Once the stock is received in NetSuite, the orders that were backordered against it go to the queue. Do this the same day the stock is received." },
   { title: "Overstock goes to overstock — and gets recorded", body: "Anything that won't fit in the pick bin goes to an overstock location. Write the overstock location on the sheet, then record it in NetSuite.", flag: "Set the pick bin and overstock bin on the individual size — the child item — not on the parent style number." },
@@ -678,18 +694,107 @@ async function loadDoc() {
     : "Showing the default procedure — save once to store it.";
   renderDoc();
 }
+const PROGRESS_KEY = "recv-procedure-progress";
+function readProgress() {
+  try { return new Set(JSON.parse(localStorage.getItem(PROGRESS_KEY) || "[]")); }
+  catch { return new Set(); }
+}
+function writeProgress(set) {
+  try { localStorage.setItem(PROGRESS_KEY, JSON.stringify([...set])); } catch { /* private mode */ }
+}
+
 function renderDoc() {
   const box = $("docView"); box.textContent = "";
-  docSteps.forEach((s, i) => {
-    const d = el("div", "doc-step");
-    d.append(el("p", "n", String(i + 1)));
+  const done = readProgress();
+
+  // progress header
+  const prog = el("div", "doc-progress");
+  const count = el("p", "count");
+  const bar = el("div", "bar"); const fill = el("i"); bar.append(fill);
+  const reset = el("button", "btn ghost sm", "Start over");
+  reset.addEventListener("click", () => { writeProgress(new Set()); renderDoc(); });
+  prog.append(count, bar, reset);
+  box.append(prog);
+
+  const paintProgress = () => {
+    const d = readProgress().size, t = docSteps.length;
+    count.textContent = `${d} of ${t} done`;
+    fill.style.width = t ? `${Math.round((d / t) * 100)}%` : "0%";
+  };
+
+  docSteps.forEach((stp, i) => {
+    const d = el("div", "doc-step" + (done.has(i) ? " done" : ""));
+
+    const num = el("button", "n", done.has(i) ? "\u2713" : String(i + 1));
+    num.type = "button";
+    num.title = done.has(i) ? "Mark this step as not done" : "Mark this step done";
+    num.setAttribute("aria-pressed", done.has(i) ? "true" : "false");
+    num.addEventListener("click", () => {
+      const cur = readProgress();
+      if (cur.has(i)) cur.delete(i); else cur.add(i);
+      writeProgress(cur);
+      d.classList.toggle("done", cur.has(i));
+      num.textContent = cur.has(i) ? "\u2713" : String(i + 1);
+      num.setAttribute("aria-pressed", cur.has(i) ? "true" : "false");
+      paintProgress();
+    });
+    d.append(num);
+
     const c = el("div");
-    c.append(el("h3", null, s.title || ""));
-    const p = el("p"); p.innerHTML = esc(s.body || "").replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
-    c.append(p);
-    if (s.flag) c.append(el("span", "flag" + (s.critical ? " critical" : ""), s.flag));
-    d.append(c); box.append(d);
+    c.append(el("h3", null, stp.title || ""));
+    if (stp.body) {
+      const p = el("p");
+      p.innerHTML = esc(stp.body).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+      c.append(p);
+    }
+    if (stp.kind === "decision") c.append(renderDecision(stp));
+    if (stp.flag) c.append(el("span", "flag" + (stp.critical ? " critical" : ""), stp.flag));
+    d.append(c);
+    box.append(d);
   });
+
+  paintProgress();
+}
+
+function renderDecision(stp) {
+  const wrap = el("div", "decision");
+
+  if (stp.stepA) {
+    const a = el("div", "substep");
+    a.append(el("p", "substep-tag", "Step A"));
+    a.append(el("h5", null, stp.stepA.heading || ""));
+    if (stp.stepA.body) a.append(el("p", null, stp.stepA.body));
+    if (stp.stepA.fields?.length) {
+      const send = el("div", "send");
+      send.append(el("b", null, stp.stepA.sendLabel || "Put this in the email"));
+      const chips = el("div", "send-chips");
+      stp.stepA.fields.forEach((f) => chips.append(el("span", null, f)));
+      send.append(chips);
+      a.append(send);
+    }
+    wrap.append(a);
+  }
+
+  if (stp.lanes?.length) {
+    const lanes = el("div", "lanes");
+    stp.lanes.forEach((ln) => {
+      const l = el("div", "lane " + (ln.tone || ""));
+      l.append(el("p", "lane-tag", ln.tag || ""));
+      l.append(el("h5", null, ln.heading || ""));
+      (Array.isArray(ln.body) ? ln.body : [ln.body]).filter(Boolean)
+        .forEach((t) => l.append(el("p", null, t)));
+      lanes.append(l);
+    });
+    wrap.append(lanes);
+  }
+
+  if (stp.stepB) {
+    const b = el("div", "substep-b");
+    b.append(el("p", "substep-tag", "Step B"));
+    b.append(el("p", null, stp.stepB));
+    wrap.append(b);
+  }
+  return wrap;
 }
 $("editDocBtn").addEventListener("click", () => {
   $("docView").hidden = true; $("docEdit").hidden = false; $("editDocBtn").hidden = true;
@@ -1045,5 +1150,11 @@ $("resetForm")?.addEventListener("submit", async (e) => {
   $("authErr").hidden = false;
   history.replaceState(null, "", APP_ORIGIN);
 });
+
+// Local-only preview hook: renders the default procedure without a login so
+// the layout can be checked while developing. Inert on the live site.
+if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+  window.__previewDoc = () => { docSteps = DEFAULT_DOC; renderDoc(); };
+}
 
 boot();
