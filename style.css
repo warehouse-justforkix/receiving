@@ -278,6 +278,14 @@ label.check input { width:20px; height:20px; min-height:0; }
 .app option, .app ::placeholder { text-transform: uppercase; }
 .toast { text-transform: uppercase; }
 
+/* The procedure document reads as prose, so it keeps normal sentence casing.
+   Only its headings stay in caps. ID selectors beat the .app rule above. */
+#view-procedure, #view-procedure * { text-transform: none; }
+#view-procedure h2,
+#view-procedure h3,
+#view-procedure .lbl,
+#view-procedure .substep-tag { text-transform: uppercase; }
+
 /* the one exception inside the app - the generated email draft */
 .email-subject, .email-subject *,
 .email-body, .email-body * { text-transform: none !important; }
