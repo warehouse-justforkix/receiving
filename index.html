@@ -22,11 +22,23 @@
     <p class="eyebrow">Just For Kix &middot; Warehouse</p>
     <h1>Receiving</h1>
     <p class="auth-sub">Use the <strong>same email and password as the Hub</strong>. Your account is shared across all the JFK warehouse apps &mdash; just sign in.</p>
-    <label>Email<input type="email" id="authEmail" autocomplete="username" required></label>
-    <label>Password<input type="password" id="authPass" autocomplete="current-password" required></label>
+    <label>Email<input type="email" id="authEmail" name="username" autocomplete="username" required></label>
+    <label>Password<input type="password" id="authPass" name="password" autocomplete="current-password" required></label>
     <button type="submit" class="btn primary" id="authBtn">Sign in</button>
     <p class="auth-err" id="authErr" hidden></p>
+    <p class="auth-alt"><button type="button" class="linkish" id="forgotToggle">Forgot your password?</button></p>
     <p class="auth-alt"><button type="button" class="linkish" id="signupToggle">Never used the Hub or Returns tracker? Create an account</button></p>
+  </form>
+
+  <!-- shown when arriving from a password-reset email -->
+  <form class="auth-card" id="resetForm" hidden>
+    <p class="eyebrow">Just For Kix &middot; Warehouse</p>
+    <h1>Set a new password</h1>
+    <p class="auth-sub">This changes your password for <strong>all</strong> the JFK warehouse apps &mdash; Receiving, the Hub and the Returns tracker.</p>
+    <label>New password<input type="password" id="newPass" name="new-password" autocomplete="new-password" minlength="8" required></label>
+    <label>Confirm<input type="password" id="newPass2" name="confirm-password" autocomplete="new-password" minlength="8" required></label>
+    <button type="submit" class="btn primary" id="resetBtn">Save new password</button>
+    <p class="auth-err" id="resetErr" hidden></p>
   </form>
 </div>
 

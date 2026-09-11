@@ -963,4 +963,49 @@ $("emailForm")?.addEventListener("submit", async (e) => {
   toast(settings.email_to ? "Email settings saved" : "Saved — but 'send to' is still empty");
 });
 
+/* ---------------- password reset ---------------- */
+const APP_ORIGIN = location.origin + location.pathname.replace(/index\.html$/, "");
+
+$("forgotToggle")?.addEventListener("click", async () => {
+  const email = ($("authEmail").value || "").trim().toLowerCase();
+  if (!email) {
+    $("authErr").textContent = "Type your email address above first, then click Forgot your password.";
+    $("authErr").hidden = false;
+    $("authEmail").focus();
+    return;
+  }
+  $("authErr").hidden = true;
+  const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: APP_ORIGIN });
+  if (error) { $("authErr").textContent = error.message; $("authErr").hidden = false; return; }
+  $("authErr").textContent = "Check " + email + " for a reset link. It may take a minute, and check junk mail.";
+  $("authErr").hidden = false;
+});
+
+// Supabase sends the user back here with a recovery token in the URL.
+sb.auth.onAuthStateChange((event) => {
+  if (event === "PASSWORD_RECOVERY") {
+    $("authGate").hidden = false;
+    $("app").hidden = true;
+    $("authForm").hidden = true;
+    $("resetForm").hidden = false;
+  }
+});
+
+$("resetForm")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const a = $("newPass").value, b = $("newPass2").value;
+  $("resetErr").hidden = true;
+  if (a !== b) { $("resetErr").textContent = "Those two passwords don't match."; $("resetErr").hidden = false; return; }
+  if (a.length < 8) { $("resetErr").textContent = "Use at least 8 characters."; $("resetErr").hidden = false; return; }
+  $("resetBtn").disabled = true;
+  const { error } = await sb.auth.updateUser({ password: a });
+  $("resetBtn").disabled = false;
+  if (error) { $("resetErr").textContent = error.message; $("resetErr").hidden = false; return; }
+  $("resetForm").hidden = true;
+  $("authForm").hidden = false;
+  $("authErr").textContent = "Password updated. Sign in with your new password.";
+  $("authErr").hidden = false;
+  history.replaceState(null, "", APP_ORIGIN);
+});
+
 boot();
