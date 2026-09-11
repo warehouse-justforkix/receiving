@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="RECEIVING">
-<link rel="stylesheet" href="style.css?v=24">
+<link rel="stylesheet" href="style.css?v=26">
 </head>
 <body>
 
@@ -90,6 +90,7 @@
         <option value="">All statuses</option>
         <option value="counting">Counting</option>
         <option value="submitted">Pending Action</option>
+        <option value="partial">Partially Received</option>
         <option value="closed">Items Received</option>
       </select>
       <label class="check"><input type="checkbox" id="discrepOnly"> Discrepancies only</label>
@@ -112,6 +113,7 @@
           <select id="sheetStatus">
             <option value="counting">Counting</option>
             <option value="submitted">Pending Action</option>
+            <option value="partial">Partially Received</option>
             <option value="closed">Items Received</option>
           </select>
         </label>
@@ -252,6 +254,6 @@
 </div>
 
 <div class="toast" id="toast" hidden></div>
-<script type="module" src="app.js?v=24"></script>
+<script type="module" src="app.js?v=26"></script>
 </body>
 </html>

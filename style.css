@@ -140,6 +140,7 @@ label.check input { width:20px; height:20px; min-height:0; }
 }
 .pill.counting  { background:var(--amberwash); color:var(--amber); }
 .pill.submitted { background:var(--pinkwash);  color:var(--pink); }
+.pill.partial   { background:var(--amberwash); color:var(--amber); }
 .pill.closed    { background:var(--greenwash); color:var(--green); }
 .empty-state { text-align:center; color:var(--slate); padding:34px 16px; border:1.5px dashed var(--line); border-radius:var(--r); }
 
@@ -160,6 +161,19 @@ label.check input { width:20px; height:20px; min-height:0; }
 .group-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 13px; background:var(--wash); border-bottom:1.5px solid var(--line); }
 .group-head h3 { font-size:15px; font-weight:800; }
 .group-head .st { font-size:12px; color:var(--slate); }
+.group-head-actions { display:flex; gap:7px; align-items:center; flex-shrink:0; }
+.group.saved .group-head { background:var(--greenwash); }
+.group.saved .group-head h3 { color:var(--green); }
+.saved-badge {
+  display:inline-flex; align-items:center; gap:5px; font-family:var(--display);
+  font-size:9.5px; font-weight:800; letter-spacing:0.09em; text-transform:uppercase;
+  background:var(--green); color:#fff; padding:3px 8px; border-radius:999px;
+}
+/* a frozen count: still readable, clearly not editable */
+.box-in[readonly] {
+  background:var(--wash); color:var(--slate); border-style:dashed; cursor:default;
+}
+.line.frozen .po { background:var(--wash); color:var(--slate); border-style:dashed; }
 
 .line { border-bottom:1px solid var(--line); padding:10px 13px; }
 .line:last-child { border-bottom:0; }
@@ -404,6 +418,9 @@ details.how li { font-size:12.5px; line-height:1.45; }
    untouched, so emails still send exactly as written. */
 .app, .app * { text-transform: uppercase; }
 .app option, .app ::placeholder { text-transform: uppercase; }
+/* the SKU hint is an example sentence, not a label - but anything typed or
+   picked stays uppercase, and is stored uppercase */
+.app #skuInput::placeholder { text-transform: none; }
 .toast { text-transform: uppercase; }
 /* Explanatory text under a panel heading is prose, not a label - sentence
    case, the same as the Procedure and Admin descriptions. */

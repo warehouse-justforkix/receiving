@@ -12,6 +12,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<"
 const STATUS_LABEL = {
   counting:  "Counting",
   submitted: "Pending Action",
+  partial:   "Partially Received",
   closed:    "Items Received",
 };
 const statusLabel = (v) => STATUS_LABEL[v] || v;
@@ -243,7 +244,8 @@ async function openSheet(id) {
     }
     const { error } = await sb.from("recv_sheets").update(patch).eq("id", sheet.id);
     if (error) return fail("Saving", error);
-    const becameReceived = col === "status" && v === "closed" && wasStatus !== "closed";
+    const becameReceived = col === "status" &&
+      (v === "closed" || v === "partial") && wasStatus !== v;
     Object.assign(sheet, patch);
     toast("Saved");
     if (becameReceived) offerReceivedEmail();
@@ -277,11 +279,29 @@ function renderGroups() {
   groups.forEach((g) => {
     const gl = lines.filter((l) => l.group_id === g.id);
     const off = gl.filter((l) => l.po_qty != null && (l.counted_qty || 0) !== l.po_qty).length;
-    const card = el("div", "group");
+    const sizesCounted = gl.filter((l) => boxes.some((b) => b.line_id === l.id)).length;
+    const counted = gl.reduce((n, l) => n + (l.counted_qty || 0), 0);
+
+    const card = el("div", "group" + (g.saved ? " saved" : ""));
     const head = el("div", "group-head");
     const left = el("div");
     left.append(el("h3", null, g.style_color));
-    left.append(el("p", "st", `${gl.length} size${gl.length === 1 ? "" : "s"}` + (off ? ` · ${off} off` : "")));
+    left.append(el("p", "st", g.saved
+      ? `${sizesCounted} size${sizesCounted === 1 ? "" : "s"} counted · ${counted} received`
+      : `${gl.length} size${gl.length === 1 ? "" : "s"}` + (off ? ` · ${off} off` : "")));
+
+    const actions = el("div", "group-head-actions");
+    if (g.saved) {
+      actions.append(el("span", "saved-badge", "\u2713 Received"));
+      const edit = el("button", "btn ghost sm", "Edit");
+      edit.addEventListener("click", () => setGroupSaved(g, false));
+      actions.append(edit);
+    } else {
+      const save = el("button", "btn sm primary", "Save");
+      save.title = "Freeze these counts and fold this style away";
+      save.addEventListener("click", () => setGroupSaved(g, true));
+      actions.append(save);
+    }
     const del = el("button", "btn ghost sm", "Remove");
     del.addEventListener("click", async () => {
       if (!confirm(`Remove ${g.style_color} and its counts from this sheet?`)) return;
@@ -289,11 +309,24 @@ function renderGroups() {
       if (error) return fail("Removing style", error);
       openSheet(sheet.id);
     });
-    head.append(left, del);
+    actions.append(del);
+
+    head.append(left, actions);
     card.append(head);
-    gl.forEach((l) => card.append(renderLine(l)));
+    // a saved style folds away entirely - the grey bar carries the summary
+    if (!g.saved) gl.forEach((l) => card.append(renderLine(l)));
     wrap.append(card);
   });
+}
+
+async function setGroupSaved(g, saved) {
+  const { error } = await sb.from("recv_sheet_groups").update({ saved }).eq("id", g.id);
+  if (error) return fail(saved ? "Saving style" : "Reopening style", error);
+  g.saved = saved;
+  const idx = groups.findIndex((x) => x.id === g.id);
+  if (idx >= 0) groups[idx].saved = saved;
+  renderGroups(); renderTotals();
+  toast(saved ? `${g.style_color} saved` : `${g.style_color} reopened for editing`);
 }
 
 function renderLine(l) {
@@ -1209,7 +1242,12 @@ if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
 /* ---------------- "items received" email to Karley ---------------- */
 function buildReceivedEmail() {
   const po = ($("sheetPo").value || sheet.po_number || "").trim();
-  const items = groups.map((g) => g.style_color);
+  // On a Partially Received sheet only the saved style-colors have actually
+  // come in, so those are the ones Karley is told about. On a fully received
+  // sheet every style on it is included.
+  const partial = sheet.status === "partial";
+  const saved = groups.filter((g) => g.saved);
+  const items = (partial && saved.length ? saved : groups).map((g) => g.style_color);
   const to = settings.email_cc || "";
   let subject, body;
   if (items.length === 1) {
@@ -1229,9 +1267,15 @@ function buildReceivedEmail() {
 function offerReceivedEmail() {
   if (!sheet) return;
   const { subject, body, items } = buildReceivedEmail();
+  const stateName = statusLabel(sheet.status);
+  const unsaved = groups.filter((g) => !g.saved).length;
   $("receivedWhat").textContent = items.length
-    ? `This sheet is now marked Items Received. Send Karley a note that ${items.length === 1 ? items[0] + " has" : items.length + " styles have"} come in?`
-    : "This sheet is now marked Items Received. Send Karley a note?";
+    ? `This sheet is now marked ${stateName}. Send Karley a note that ` +
+      `${items.length === 1 ? items[0] + " has" : items.length + " styles have"} come in?` +
+      (sheet.status === "partial" && unsaved
+        ? ` ${unsaved} style${unsaved === 1 ? " is" : "s are"} still open and not included.`
+        : "")
+    : `This sheet is now marked ${stateName}. Send Karley a note?`;
   $("receivedSubject").textContent = subject;
   $("receivedBody").textContent = body;
   $("receivedModal").hidden = false;
