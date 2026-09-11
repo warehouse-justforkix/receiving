@@ -327,6 +327,27 @@ function renderLine(l) {
 function drawBoxes(l, bx, row) {
   bx.textContent = "";
   const mine = boxes.filter((b) => b.line_id === l.id).sort((a, b) => a.box_no - b.box_no);
+
+  // Every size shows a blank ready to type in. The row is only written to the
+  // database once a number is actually entered, so untouched sizes stay clean.
+  if (!mine.length) {
+    const w = el("div", "box-wrap");
+    w.append(el("span", "bn", "Box 1"));
+    const i = el("input", "box-in");
+    i.type = "number"; i.inputMode = "numeric"; i.placeholder = "\u2013";
+    i.addEventListener("change", async () => {
+      if (i.value === "") return;
+      const { data, error } = await sb.from("recv_line_boxes")
+        .insert({ line_id: l.id, box_no: 1, qty: parseInt(i.value, 10) || 0, created_by: me.id })
+        .select().single();
+      if (error) return fail("Saving count", error);
+      boxes.push(data);
+      await recount(l, row, bx);
+    });
+    w.append(i);
+    bx.append(w);
+  }
+
   mine.forEach((b) => {
     const w = el("div", "box-wrap");
     w.append(el("span", "bn", "Box " + b.box_no));
@@ -337,19 +358,25 @@ function drawBoxes(l, bx, row) {
       if (error) return fail("Saving box", error);
       b.qty = v; await recount(l, row, bx);
     });
-    const rm = el("button", "linkish sm", "×");
-    rm.title = "Remove this box";
-    rm.addEventListener("click", async () => {
-      const { error } = await sb.from("recv_line_boxes").delete().eq("id", b.id);
-      if (error) return fail("Removing box", error);
-      boxes = boxes.filter((x) => x.id !== b.id);
-      await recount(l, row, bx);
-    });
-    w.append(i, rm);
+    // only offer removal once there is more than one box on the size
+    if (mine.length > 1) {
+      const rm = el("button", "linkish sm box-rm", "\u00d7");
+      rm.title = "Remove box " + b.box_no;
+      rm.addEventListener("click", async () => {
+        const { error } = await sb.from("recv_line_boxes").delete().eq("id", b.id);
+        if (error) return fail("Removing box", error);
+        boxes = boxes.filter((x) => x.id !== b.id);
+        await recount(l, row, bx);
+      });
+      w.append(i, rm);
+    } else {
+      w.append(i);
+    }
     bx.append(w);
   });
+
   const add = el("button", "btn box-add", "+");
-  add.title = "Add another box";
+  add.title = "Another box of this same size";
   add.addEventListener("click", async () => {
     const { data, error } = await sb.rpc("recv_add_box", { p_line: l.id });
     if (error) return fail("Adding box", error);
