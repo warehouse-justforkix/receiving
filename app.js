@@ -406,13 +406,10 @@ function renderLine(l, frozen = false) {
 
   const nums = el("div", "line-nums");
 
-  // what was counted, on the left
+  // counted first, then what the PO ordered right beside it
   nums.append(el("span", "sm", "Counted"));
   nums.append(el("span", "counted", num(l.counted_qty)));
-  nums.append(el("span", "var", ""));
-  nums.append(el("span", "var recv-pill", ""));
 
-  // what the PO said, on the right
   const po = el("input", "po"); po.type = "number"; po.inputMode = "numeric";
   po.value = l.po_qty ?? ""; po.placeholder = "—";
   if (frozen) po.readOnly = true;
@@ -426,6 +423,11 @@ function renderLine(l, frozen = false) {
   const poWrap = el("div", "po-wrap");
   poWrap.append(el("span", "sm", "PO qty ordered"), po);
   nums.append(poWrap);
+
+  // every status sits together at the far right of the row
+  const pills = el("div", "line-pills");
+  pills.append(el("span", "var", ""), el("span", "var recv-pill", ""));
+  nums.append(pills);
   top.append(nums);
   row.append(top);
 
