@@ -673,7 +673,19 @@ const DEFAULT_DOC = [
     },
     lanes: [
       { tone: "adjust", tag: "If Tristan says adjust", heading: "Make the inventory adjustment",
-        body: ["Enter the adjustment in NetSuite so the system matches what is physically on the floor. Reference the PO number and the reason on the adjustment so it can be traced later.", "Then continue to step 6."] },
+        body: ["Enter the adjustment in NetSuite so the system matches what is physically on the floor. Reference the PO number and the reason on the adjustment so it can be traced later.", "Then continue to step 6."],
+        howLabel: "How to do it in NetSuite",
+        how: [
+          "Click the \u2605 at the top left of your screen and choose Inventory Adjustments.",
+          "Click New Transaction.",
+          "Adjustment Account: 500000 COGS.",
+          "Memo: make this descriptive. Always include the PO# and say what is off that you are adjusting.",
+          "Under Classification, set Adjustment Location to JFK Warehouse.",
+          "Under Item, type the style-color-size exactly, then click the size that populates.",
+          "On that line go to Location and select JFK Warehouse. Qty. On Hand fills in with what we currently have.",
+          "In Adjust Qty. By, enter the amount you are adjusting. Negative numbers always include a minus sign (-12). Positive numbers are just the whole number (12) \u2014 no plus sign.",
+          "Check the New Quantity that populates. If it is correct, hit Save.",
+        ] },
       { tone: "hold", tag: "If Tristan says hold", heading: "Leave the shortage open",
         body: ["More stock is on its way. Do not adjust — leave the outstanding quantity open on the PO so the rest of the shipment can be received against it.", "Shelve what did arrive, and keep this sheet with the PO until the balance lands."] },
     ],
@@ -783,6 +795,14 @@ function renderDecision(stp) {
       l.append(el("h5", null, ln.heading || ""));
       (Array.isArray(ln.body) ? ln.body : [ln.body]).filter(Boolean)
         .forEach((t) => l.append(el("p", null, t)));
+      if (ln.how?.length) {
+        const det = el("details", "how");
+        det.append(el("summary", null, ln.howLabel || "Step by step"));
+        const ol = el("ol");
+        ln.how.forEach((step) => ol.append(el("li", null, step)));
+        det.append(ol);
+        l.append(det);
+      }
       lanes.append(l);
     });
     wrap.append(lanes);
