@@ -676,7 +676,10 @@ async function loadAudit() {
     .order("created_at", { ascending: false }).limit(80);
   if (error) return;
   const box = $("auditList"); box.textContent = "";
-  if (!(data || []).length) { box.append(el("p", "muted sm", "No changes recorded yet.")); return; }
+  const n = (data || []).length;
+  const meta = $("auditCount");
+  if (meta) meta.textContent = n ? `${n} change${n === 1 ? "" : "s"}` : "no changes yet";
+  if (!n) { box.append(el("p", "muted sm", "No changes recorded yet.")); return; }
   data.forEach((a) => {
     const r = el("div", "audit-row");
     r.append(el("b", null, a.recv_people?.name || "someone"));

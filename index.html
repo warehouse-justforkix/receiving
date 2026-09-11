@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="RECEIVING">
-<link rel="stylesheet" href="style.css?v=20">
+<link rel="stylesheet" href="style.css?v=21">
 </head>
 <body>
 
@@ -156,11 +156,16 @@
         </form>
       </div>
 
-      <div class="panel">
-        <h3>Change log</h3>
-        <p class="muted sm">Nothing locks &mdash; every edit is recorded here.</p>
-        <div id="auditList" class="audit-list"></div>
-      </div>
+      <details class="panel collapsible" id="auditPanel">
+        <summary class="panel-summary">
+          <span class="panel-title">Change log</span>
+          <span class="panel-meta" id="auditCount"></span>
+        </summary>
+        <div class="panel-body">
+          <p class="muted sm">Nothing locks &mdash; every edit is recorded here.</p>
+          <div id="auditList" class="audit-list"></div>
+        </div>
+      </details>
     </div>
   </section>
 
@@ -247,6 +252,6 @@
 </div>
 
 <div class="toast" id="toast" hidden></div>
-<script type="module" src="app.js?v=20"></script>
+<script type="module" src="app.js?v=21"></script>
 </body>
 </html>
