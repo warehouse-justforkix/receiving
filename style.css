@@ -174,6 +174,19 @@ label.check input { width:20px; height:20px; min-height:0; }
   background:var(--wash); color:var(--slate); border-style:dashed; cursor:default;
 }
 .line.frozen .po { background:var(--wash); color:var(--slate); border-style:dashed; }
+/* the review fold on a saved style: open it to check counts without unlocking */
+.group-fold > summary {
+  list-style:none; cursor:pointer; user-select:none;
+  font-family:var(--display); font-size:11.5px; font-weight:800; letter-spacing:0.05em;
+  text-transform:uppercase; color:var(--green);
+  padding:10px 13px; display:flex; align-items:center; gap:7px;
+  border-top:1px solid var(--line);
+}
+.group-fold > summary::-webkit-details-marker { display:none; }
+.group-fold > summary::before { content:"\25B8"; transition:transform .15s ease; display:inline-block; }
+.group-fold[open] > summary::before { transform:rotate(90deg); }
+.group-fold > summary:hover { background:var(--wash); }
+.group-fold-body { border-top:1px solid var(--line); }
 
 .line { border-bottom:1px solid var(--line); padding:10px 13px; }
 .line:last-child { border-bottom:0; }

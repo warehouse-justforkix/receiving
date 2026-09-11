@@ -313,8 +313,18 @@ function renderGroups() {
 
     head.append(left, actions);
     card.append(head);
-    // a saved style folds away entirely - the grey bar carries the summary
-    if (!g.saved) gl.forEach((l) => card.append(renderLine(l)));
+    if (g.saved) {
+      // folded, but still openable to check the counts without unlocking them
+      const fold = el("details", "group-fold");
+      const sum = el("summary", null, "Review counts");
+      fold.append(sum);
+      const body = el("div", "group-fold-body");
+      gl.forEach((l) => body.append(renderLine(l, true)));
+      fold.append(body);
+      card.append(fold);
+    } else {
+      gl.forEach((l) => card.append(renderLine(l)));
+    }
     wrap.append(card);
   });
 }
@@ -329,8 +339,8 @@ async function setGroupSaved(g, saved) {
   toast(saved ? `${g.style_color} saved` : `${g.style_color} reopened for editing`);
 }
 
-function renderLine(l) {
-  const row = el("div", "line");
+function renderLine(l, frozen = false) {
+  const row = el("div", "line" + (frozen ? " frozen" : ""));
   const top = el("div", "line-top");
   top.append(el("p", "size-tag", sizeLabel(l.size)));
 
@@ -338,7 +348,9 @@ function renderLine(l) {
   nums.append(el("span", "sm", "PO"));
   const po = el("input", "po"); po.type = "number"; po.inputMode = "numeric";
   po.value = l.po_qty ?? ""; po.placeholder = "—";
+  if (frozen) po.readOnly = true;
   po.addEventListener("change", async () => {
+    if (frozen) return;
     const v = po.value === "" ? null : parseInt(po.value, 10);
     const { error } = await sb.from("recv_sheet_lines").update({ po_qty: v }).eq("id", l.id);
     if (error) return fail("Saving PO qty", error);
@@ -355,18 +367,18 @@ function renderLine(l) {
   const bx = el("div", "boxes");
   row.append(bx);
 
-  drawBoxes(l, bx, row);
+  drawBoxes(l, bx, row, frozen);
   refreshLine(l, row);
   return row;
 }
 
-function drawBoxes(l, bx, row) {
+function drawBoxes(l, bx, row, frozen = false) {
   bx.textContent = "";
   const mine = boxes.filter((b) => b.line_id === l.id).sort((a, b) => a.box_no - b.box_no);
 
   // Every size shows a blank ready to type in. The row is only written to the
   // database once a number is actually entered, so untouched sizes stay clean.
-  if (!mine.length) {
+  if (!mine.length && !frozen) {
     const w = el("div", "box-wrap");
     w.append(el("span", "bn", "Box 1"));
     const i = el("input", "box-in");
@@ -388,14 +400,16 @@ function drawBoxes(l, bx, row) {
     const w = el("div", "box-wrap");
     w.append(el("span", "bn", "Box " + b.box_no));
     const i = el("input", "box-in"); i.type = "number"; i.inputMode = "numeric"; i.value = b.qty;
+    if (frozen) i.readOnly = true;
     i.addEventListener("change", async () => {
+      if (frozen) return;
       const v = i.value === "" ? 0 : parseInt(i.value, 10);
       const { error } = await sb.from("recv_line_boxes").update({ qty: v }).eq("id", b.id);
       if (error) return fail("Saving box", error);
       b.qty = v; await recount(l, row, bx);
     });
     // only offer removal once there is more than one box on the size
-    if (mine.length > 1) {
+    if (mine.length > 1 && !frozen) {
       const rm = el("button", "linkish sm box-rm", "\u00d7");
       rm.title = "Remove box " + b.box_no;
       rm.addEventListener("click", async () => {
@@ -411,6 +425,10 @@ function drawBoxes(l, bx, row) {
     bx.append(w);
   });
 
+  if (frozen) {
+    if (!mine.length) bx.append(el("p", "muted sm", "Not counted"));
+    return;
+  }
   const add = el("button", "btn box-add", "+");
   add.title = "Another box of this same size";
   add.addEventListener("click", async () => {
@@ -1237,6 +1255,10 @@ $("resetForm")?.addEventListener("submit", async (e) => {
 // the layout can be checked while developing. Inert on the live site.
 if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
   window.__previewDoc = () => { docSteps = DEFAULT_DOC; renderDoc(); };
+  window.__previewSheet = (d) => {
+    sheet = d.sheet; groups = d.groups; lines = d.lines; boxes = d.boxes;
+    renderGroups(); renderTotals();
+  };
 }
 
 /* ---------------- "items received" email to Karley ---------------- */
