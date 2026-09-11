@@ -198,6 +198,9 @@ label.check input { width:20px; height:20px; min-height:0; }
   background:var(--wash); color:var(--slate); border-style:dashed; cursor:default;
 }
 .line.frozen .po { background:var(--wash); color:var(--slate); border-style:dashed; }
+/* a size marked Not received stands out down the whole row */
+.line.is-notreceived { background:var(--pinkwash); box-shadow:inset 4px 0 0 var(--coral); }
+.line.is-notreceived .size-tag { color:var(--coral); }
 
 .line { border-bottom:1px solid var(--line); padding:10px 13px; }
 .line:last-child { border-bottom:0; }

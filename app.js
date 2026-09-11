@@ -561,6 +561,9 @@ function refreshLine(l, row) {
   const st = lineState(l);
   v.textContent = st.label;
   v.className = "var " + st.key;
+  // a size marked Not received highlights the whole row, so it cannot be
+  // missed when scanning a long size run
+  row.classList.toggle("is-notreceived", st.key === "notreceived");
 }
 
 /* ---------------- SKU autocomplete ---------------- */
