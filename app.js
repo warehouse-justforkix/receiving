@@ -405,7 +405,14 @@ function renderLine(l, frozen = false) {
   top.append(el("p", "size-tag", sizeLabel(l.size)));
 
   const nums = el("div", "line-nums");
-  nums.append(el("span", "sm", "PO"));
+
+  // what was counted, on the left
+  nums.append(el("span", "sm", "Counted"));
+  nums.append(el("span", "counted", num(l.counted_qty)));
+  nums.append(el("span", "var", ""));
+  nums.append(el("span", "var recv-pill", ""));
+
+  // what the PO said, on the right
   const po = el("input", "po"); po.type = "number"; po.inputMode = "numeric";
   po.value = l.po_qty ?? ""; po.placeholder = "—";
   if (frozen) po.readOnly = true;
@@ -416,11 +423,9 @@ function renderLine(l, frozen = false) {
     if (error) return fail("Saving PO qty", error);
     l.po_qty = v; refreshLine(l, row); renderTotals(); loadAudit();
   });
-  nums.append(po);
-  nums.append(el("span", "sm", "counted"));
-  nums.append(el("span", "counted", num(l.counted_qty)));
-  nums.append(el("span", "var", ""));
-  nums.append(el("span", "var recv-pill", ""));
+  const poWrap = el("div", "po-wrap");
+  poWrap.append(el("span", "sm", "PO qty ordered"), po);
+  nums.append(poWrap);
   top.append(nums);
   row.append(top);
 

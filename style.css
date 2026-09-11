@@ -209,6 +209,8 @@ label.check input { width:20px; height:20px; min-height:0; }
 .size-tag { font-family:var(--display); font-size:14px; font-weight:800; }
 .line-nums { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-variant-numeric:tabular-nums; font-size:13px; }
 .line-nums .po { width:74px; min-height:38px; padding:6px 8px; }
+/* PO qty sits on the right-hand end of the row, counted on the left */
+.po-wrap { display:flex; align-items:center; gap:7px; margin-left:auto; }
 .counted { font-family:var(--display); font-size:17px; font-weight:800; min-width:34px; text-align:right; }
 .var { font-family:var(--display); font-size:12.5px; font-weight:800; padding:3px 8px; border-radius:999px; white-space:nowrap; }
 .var.ok        { background:var(--greenwash); color:var(--green); }
