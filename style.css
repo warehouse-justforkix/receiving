@@ -173,21 +173,26 @@ label.check input { width:20px; height:20px; min-height:0; }
 .tile.ok  .v { color:var(--green); }
 
 .group { background:var(--card); border:1.5px solid var(--line); border-radius:var(--r); margin-bottom:12px; overflow:hidden; }
-.group-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 13px; background:var(--wash); border-bottom:1.5px solid var(--line); }
-.group-head h3 { font-size:15px; font-weight:800; }
-.group-head .st { font-size:12px; color:var(--slate); }
+.group-head {
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:11px 13px; background:var(--plum); border-bottom:1.5px solid var(--plum);
+}
+.group-head h3 { font-size:15px; font-weight:800; color:#fff; }
+.group-head .st { font-size:12px; color:rgba(255,255,255,.82); }
+/* buttons sit on maroon, so they invert */
+.group-head .btn { background:transparent; border-color:rgba(255,255,255,.55); color:#fff; }
+.group-head .btn:hover { border-color:#fff; background:rgba(255,255,255,.12); }
+.group-head .btn.primary { background:#fff; border-color:#fff; color:var(--plum); }
+.group-head .btn.primary:hover { background:rgba(255,255,255,.88); }
 .group-head-actions { display:flex; gap:7px; align-items:center; flex-shrink:0; }
-.group.saved .group-head { background:var(--greenwash); }
-.group.saved .group-head h3 { color:var(--green); }
 .saved-badge {
   display:inline-flex; align-items:center; gap:5px; font-family:var(--display);
   font-size:9.5px; font-weight:800; letter-spacing:0.09em; text-transform:uppercase;
   background:var(--blue); color:#fff; padding:3px 8px; border-radius:999px;
 }
-.group.saved .group-head { background:var(--wash); }
-.group.saved .group-head h3 { color:var(--ink); }
-.group.saved.is-received .group-head { background:var(--bluewash); }
-.group.saved.is-received .group-head h3 { color:var(--blue); }
+/* a received style keeps the blue signal, still light-on-dark */
+.group.saved.is-received .group-head { background:var(--blue); border-bottom-color:var(--blue); }
+.group.saved.is-received .group-head .btn.primary { color:var(--blue); }
 /* a frozen count: still readable, clearly not editable */
 .box-in[readonly] {
   background:var(--wash); color:var(--slate); border-style:dashed; cursor:default;

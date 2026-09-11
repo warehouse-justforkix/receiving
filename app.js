@@ -5,6 +5,9 @@ const VERSION = "v1";
 const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { storageKey: "recv-auth" } });
 const $  = (id) => document.getElementById(id);
 const el = (t, c, txt) => { const n = document.createElement(t); if (c) n.className = c; if (txt != null) n.textContent = txt; return n; };
+/* Thousands separators on every quantity shown on screen. */
+const num = (n) => Number(n || 0).toLocaleString();
+const signed = (n) => (n > 0 ? "+" : n < 0 ? "-" : "") + num(Math.abs(n));
 const esc = (s) => String(s ?? "").replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[m]));
 
 /* The three sheet statuses. The stored values are historical; these are the
@@ -305,7 +308,7 @@ function renderTotals() {
   // its whole size run, and most of those never get touched on a given truck
   const sizesCounted = lines.filter((l) => boxes.some((b) => b.line_id === l.id)).length;
   const box = $("sheetTotals"); box.textContent = "";
-  const tile = (k, v, cls) => { const t = el("div", "tile" + (cls ? " " + cls : "")); t.append(el("p", "k", k), el("p", "v", String(v))); return t; };
+  const tile = (k, v, cls) => { const t = el("div", "tile" + (cls ? " " + cls : "")); t.append(el("p", "k", k), el("p", "v", typeof v === "number" ? num(v) : String(v))); return t; };
   box.append(
     tile("Sizes counted", sizesCounted),
     tile("Counted", counted),
@@ -335,8 +338,8 @@ function renderGroups() {
     const shortOf = gl.filter((l) => ["short", "none", "notreceived"].includes(lineState(l).key)).length;
     left.append(el("p", "st", g.saved
       ? (receiving
-          ? `${recv} of ${gl.length} sizes received · ${counted} units`
-          : `${sizesCounted} of ${gl.length} sizes counted · ${counted} units` +
+          ? `${recv} of ${gl.length} sizes received · ${num(counted)} units`
+          : `${sizesCounted} of ${gl.length} sizes counted · ${num(counted)} units` +
             (off ? ` · ${off} off` : ""))
       : receiving
         ? `${gl.length} size${gl.length === 1 ? "" : "s"}` +
@@ -405,7 +408,7 @@ function renderLine(l, frozen = false) {
   });
   nums.append(po);
   nums.append(el("span", "sm", "counted"));
-  nums.append(el("span", "counted", String(l.counted_qty || 0)));
+  nums.append(el("span", "counted", num(l.counted_qty)));
   nums.append(el("span", "var", ""));
   top.append(nums);
   row.append(top);
@@ -535,7 +538,7 @@ function lineState(l) {
     const d = (l.counted_qty || 0) - l.po_qty;
     return d === 0
       ? { key: "ok", label: "good" }
-      : { key: "off", label: `off by ${d > 0 ? "+" : ""}${d}` };
+      : { key: "off", label: `off by ${signed(d)}` };
   }
 
   // an explicit mark, where someone has made the call, always wins
@@ -544,16 +547,16 @@ function lineState(l) {
   const hasCount = boxes.some((b) => b.line_id === l.id);
   if (!hasCount) return { key: "uncounted", label: "Not counted" };
   const c = l.counted_qty || 0;
-  if (l.po_qty == null) return { key: "counted", label: `${c} counted` };
+  if (l.po_qty == null) return { key: "counted", label: `${num(c)} counted` };
   const d = c - l.po_qty;
   if (d === 0) return { key: "received", label: "Received" };
   if (c === 0)  return { key: "none", label: "None arrived" };
-  if (d < 0)    return { key: "short", label: `Short ${d}` };
-  return { key: "over", label: `Over +${d}` };
+  if (d < 0)    return { key: "short", label: `Short ${signed(d)}` };
+  return { key: "over", label: `Over ${signed(d)}` };
 }
 
 function refreshLine(l, row) {
-  row.querySelector(".counted").textContent = String(l.counted_qty || 0);
+  row.querySelector(".counted").textContent = num(l.counted_qty);
   const v = row.querySelector(".var");
   const st = lineState(l);
   v.textContent = st.label;
