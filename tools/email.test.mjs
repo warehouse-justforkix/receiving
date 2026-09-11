@@ -2,7 +2,8 @@
 // The function is extracted from app.js so it can run without a DOM.
 import fs from "node:fs";
 const src = fs.readFileSync(new URL("../app.js", import.meta.url), "utf8");
-const start = src.indexOf("export function composeEmail");
+// start at the one-size helpers, which composeEmail depends on
+const start = src.indexOf("const ONE_SIZE");
 const end   = src.indexOf('$("genEmailBtn")');
 const esc = (s) => String(s ?? "").replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[m]));
 const composeEmail = (new Function("esc", src.slice(start, end).replace("export ", "") +
@@ -82,6 +83,41 @@ const clean = composeEmail({ po: "88", adj: "", blocks: [{ styleColor: "A-B", ro
 check("all-matched subject differs", clean.subject === "PO# 88 counts matched");
 check("all-matched body still lists every size", clean.text.includes("M was good"));
 check("no plural voice anywhere", !/\b(We|we|us|our)\b/.test(ex1.text + ex2.text + multi.text + clean.text));
+
+/* ---------- one-size items never print a size ---------- */
+console.log("\nOne-size items (OS must never appear - it reads as overstock)");
+const osEmail = composeEmail({
+  po: "46267", adj: "", blocks: [
+    { styleColor: "AC92-Purple",     rows: [row("OS", 300, 300)] },
+    { styleColor: "AC97-Crystal AB", rows: [row("OS", 822, 750)] },
+    { styleColor: "AC261",           rows: [row("OSFA", 1975, 2000)] },
+    { styleColor: "H0706-Crystal",   rows: [row("1SZ", 10000, 5000)] },
+  ],
+});
+console.log("\n--- body ---\n" + osEmail.text + "\n");
+check("no bare OS anywhere in the body", !/\bOS\b/.test(osEmail.text), osEmail.text);
+check("no OSFA / 1SZ either", !/\b(OSFA|OSFM|1SZ|ADJUSTABLE)\b/i.test(osEmail.text));
+check("matched one-size folds onto the style line", osEmail.text.includes("AC92-Purple was good"));
+check("off one-size folds onto the style line",
+  osEmail.text.includes("AC97-Crystal AB counted 822 PO has 750 off by 72"));
+check("negative one-size keeps its sign",
+  osEmail.text.includes("AC261 counted 1975 PO has 2000 off by -25"));
+check("one-size discrepancies still bold", (osEmail.html.match(/<strong>/g) || []).length === 3,
+  "expected 3 bold rows, got " + (osEmail.html.match(/<strong>/g) || []).length);
+
+/* real sizes are untouched */
+const sized = composeEmail({ po: "45032", adj: "", blocks: [
+  { styleColor: "AC6776-Fuchsia", rows: [row("XS", 0, 73), row("S", 179, 196), row("M", 88, 88)] },
+]});
+check("real sizes still printed", sized.text.includes("XS counted 0 PO has 73 off by -73")
+  && sized.text.includes("M was good"));
+
+/* a mixed block drops only the one-size row's label */
+const mixed2 = composeEmail({ po: "99", adj: "", blocks: [
+  { styleColor: "X-Y", rows: [row("OS", 5, 6), row("L", 4, 4)] },
+]});
+check("mixed block: one-size row loses its label, real size keeps it",
+  mixed2.text.includes("counted 5 PO has 6 off by -1") && mixed2.text.includes("L was good"));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

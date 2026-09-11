@@ -701,6 +701,12 @@ function sizeRank(s) {
 /* ---------------- email draft ---------------- */
 /* Pure formatter so the wording can be unit-tested against Karley's two
    reference emails. blocks = [{styleColor, rows:[{size,counted,po,d}]}] */
+/* Sizes that mean "one size". These are never printed in an email: "OS" in a
+   receiving email reads as overstock, and a one-size item has no size worth
+   stating anyway. */
+const ONE_SIZE = new Set(["OS", "O/S", "OSFA", "OSFM", "OSFY", "1SZ", "ONESIZE", "ONE SIZE", "ADJUSTABLE", "NS", "UNI"]);
+const isOneSize = (sz) => ONE_SIZE.has(String(sz || "").trim().toUpperCase());
+
 export function composeEmail({ po, adj, greeting = "Hi Tristan,", blocks }) {
   const offRows = blocks.flatMap((b) => b.rows.filter((r) => r.d !== 0));
   const text = [], html = [];
@@ -746,18 +752,30 @@ export function composeEmail({ po, adj, greeting = "Hi Tristan,", blocks }) {
   html.push(esc(intro), "", esc("Here are my counts:"));
 
   blocks.forEach((b) => {
+    const body = (r) => r.d === 0
+      ? "was good"
+      : `counted ${r.counted} PO has ${r.po} off by ${r.d}`;
+
+    // A one-size style has nothing worth listing under its own name, so the
+    // whole thing goes on one line: "AC92-Purple was good".
+    const lone = b.rows.length === 1 && isOneSize(b.rows[0].size);
+    if (lone) {
+      const r = b.rows[0];
+      const l = single ? body(r) : `${b.styleColor} ${body(r)}`;
+      text.push("", l);
+      html.push("", r.d === 0 ? esc(l) : "<strong>" + esc(l) + "</strong>");
+      return;
+    }
+
     if (!single) {
       text.push("", b.styleColor);
       html.push("", "<strong>" + esc(b.styleColor) + "</strong>");
     }
     b.rows.forEach((r) => {
-      if (r.d === 0) {
-        const l = `${r.size} was good`;
-        text.push(l); html.push(esc(l));
-      } else {
-        const l = `${r.size} counted ${r.counted} PO has ${r.po} off by ${r.d}`;
-        text.push(l); html.push("<strong>" + esc(l) + "</strong>");
-      }
+      // drop the size word for one-size rows even in a mixed block
+      const l = isOneSize(r.size) ? body(r) : `${r.size} ${body(r)}`;
+      text.push(l);
+      html.push(r.d === 0 ? esc(l) : "<strong>" + esc(l) + "</strong>");
     });
   });
   return { subject, text: text.join("\n"), html: html.join("<br>") };
