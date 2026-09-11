@@ -7,6 +7,15 @@ const $  = (id) => document.getElementById(id);
 const el = (t, c, txt) => { const n = document.createElement(t); if (c) n.className = c; if (txt != null) n.textContent = txt; return n; };
 const esc = (s) => String(s ?? "").replace(/[&<>]/g, (m) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[m]));
 
+/* The three sheet statuses. The stored values are historical; these are the
+   words the warehouse uses, and the only ones shown anywhere. */
+const STATUS_LABEL = {
+  counting:  "Counted",
+  submitted: "Pending Action",
+  closed:    "Items Received",
+};
+const statusLabel = (v) => STATUS_LABEL[v] || v;
+
 let me = null, isAdmin = false, sheets = [], sheet = null, groups = [], lines = [], boxes = [];
 let sizeAliases = {}, settings = {}, signupMode = false, acMatches = [], acSel = -1;
 
@@ -164,7 +173,7 @@ function renderSheets() {
       (s.vendor ? ` · ${s.vendor}` : "") +
       ` · ${(s.grps || []).length} style-color · ${when(s.created_at)}`;
     const tally = el("div", "tally");
-    tally.append(el("span", `pill ${s.status}`, s.status));
+    tally.append(el("span", `pill ${s.status}`, statusLabel(s.status)));
     const n = el("p", "sub");
     n.textContent = stats.withPo === 0 ? "no PO qty yet"
       : stats.off > 0 ? `${stats.off} off` : "all matched";
@@ -226,6 +235,7 @@ async function openSheet(id) {
       toast(`${REQUIRED[col]} can't be blank`);
       return;
     }
+    const wasStatus = sheet.status;
     const patch = { [col]: REQUIRED[col] ? v : (v || null), updated_at: new Date().toISOString() };
     if (col === "status") {
       patch.submitted_at = v === "submitted" ? new Date().toISOString() : sheet.submitted_at;
@@ -233,8 +243,10 @@ async function openSheet(id) {
     }
     const { error } = await sb.from("recv_sheets").update(patch).eq("id", sheet.id);
     if (error) return fail("Saving", error);
+    const becameReceived = col === "status" && v === "closed" && wasStatus !== "closed";
     Object.assign(sheet, patch);
     toast("Saved");
+    if (becameReceived) offerReceivedEmail();
   });
 });
 
@@ -1172,5 +1184,56 @@ $("resetForm")?.addEventListener("submit", async (e) => {
 if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
   window.__previewDoc = () => { docSteps = DEFAULT_DOC; renderDoc(); };
 }
+
+/* ---------------- "items received" email to Karley ---------------- */
+function buildReceivedEmail() {
+  const po = ($("sheetPo").value || sheet.po_number || "").trim();
+  const items = groups.map((g) => g.style_color);
+  const to = settings.email_cc || "";
+  let subject, body;
+  if (items.length === 1) {
+    subject = `${items[0]} received - PO# ${po}`;
+    body = `Hi Karley,\n\n${items[0]} has been received. PO# ${po}.`;
+  } else if (items.length > 1) {
+    subject = `PO# ${po} received`;
+    body = `Hi Karley,\n\nThese have been received on PO# ${po}:\n` +
+           items.map((i) => `  ${i}`).join("\n");
+  } else {
+    subject = `PO# ${po} received`;
+    body = `Hi Karley,\n\nPO# ${po} has been received.`;
+  }
+  return { subject, body, to, items };
+}
+
+function offerReceivedEmail() {
+  if (!sheet) return;
+  const { subject, body, items } = buildReceivedEmail();
+  $("receivedWhat").textContent = items.length
+    ? `This sheet is now marked Items Received. Send Karley a note that ${items.length === 1 ? items[0] + " has" : items.length + " styles have"} come in?`
+    : "This sheet is now marked Items Received. Send Karley a note?";
+  $("receivedSubject").textContent = subject;
+  $("receivedBody").textContent = body;
+  $("receivedModal").hidden = false;
+  $("receivedCopy").focus();
+}
+
+function closeReceivedModal() { $("receivedModal").hidden = true; }
+$("receivedSkip")?.addEventListener("click", closeReceivedModal);
+$("receivedModal")?.addEventListener("click", (e) => {
+  if (e.target === $("receivedModal")) closeReceivedModal();
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !$("receivedModal")?.hidden) closeReceivedModal();
+});
+$("receivedCopy")?.addEventListener("click", async () => {
+  const { subject, body, to } = buildReceivedEmail();
+  const header = (to ? `To: ${to}\n` : "") + `Subject: ${subject}\n\n`;
+  try {
+    await navigator.clipboard.writeText(header + body);
+    toast(to ? "Email copied - paste it to " + to : "Email copied");
+  } catch (e) { fail("Copying", e); }
+  closeReceivedModal();
+});
+
 
 boot();

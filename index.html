@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="RECEIVING">
-<link rel="stylesheet" href="style.css?v=12">
+<link rel="stylesheet" href="style.css?v=14">
 </head>
 <body>
 
@@ -88,9 +88,9 @@
       <input type="search" id="sheetSearch" placeholder="Search title, PO#, style&hellip;">
       <select id="statusFilter">
         <option value="">All statuses</option>
-        <option value="counting">Counting</option>
-        <option value="submitted">Submitted</option>
-        <option value="closed">Closed</option>
+        <option value="counting">Counted</option>
+        <option value="submitted">Pending Action</option>
+        <option value="closed">Items Received</option>
       </select>
       <label class="check"><input type="checkbox" id="discrepOnly"> Discrepancies only</label>
     </div>
@@ -107,9 +107,9 @@
         <label>Vendor<input id="sheetVendor" placeholder="optional"></label>
         <label>Status
           <select id="sheetStatus">
-            <option value="counting">Counting</option>
-            <option value="submitted">Submitted</option>
-            <option value="closed">Closed</option>
+            <option value="counting">Counted</option>
+            <option value="submitted">Pending Action</option>
+            <option value="closed">Items Received</option>
           </select>
         </label>
         <label>Adjustment #<input id="sheetAdj" placeholder="e.g. 34450"></label>
@@ -216,7 +216,22 @@
   <p class="version" id="version"></p>
 </div>
 
+<div class="modal-back" id="receivedModal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="receivedTitle">
+    <h3 id="receivedTitle">Let Karley know?</h3>
+    <p class="muted sm" id="receivedWhat"></p>
+    <label class="lbl">Subject</label>
+    <div class="email-subject" id="receivedSubject"></div>
+    <label class="lbl">Body</label>
+    <pre class="email-body" id="receivedBody"></pre>
+    <div class="modal-actions">
+      <button class="btn primary" id="receivedCopy">Copy email</button>
+      <button class="btn ghost" id="receivedSkip">Not now</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast" hidden></div>
-<script type="module" src="app.js?v=12"></script>
+<script type="module" src="app.js?v=14"></script>
 </body>
 </html>

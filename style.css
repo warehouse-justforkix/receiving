@@ -323,6 +323,24 @@ details.how li { font-size:12.5px; line-height:1.45; }
 
 .version { text-align:center; color:var(--faint); font-size:11px; margin:26px 0 0; }
 
+/* ---------- modal ---------- */
+.modal-back {
+  position:fixed; inset:0; z-index:90; display:flex; align-items:center; justify-content:center;
+  padding:20px; background:rgba(0,0,0,.45);
+}
+.modal {
+  background:var(--card); border:1.5px solid var(--line); border-radius:14px;
+  padding:20px 20px 18px; width:100%; max-width:520px; max-height:86vh; overflow-y:auto;
+  box-shadow:0 14px 40px rgba(0,0,0,.3);
+}
+.modal h3 { font-family:var(--display); font-size:17px; font-weight:800; margin:0 0 5px; }
+.modal .email-body { max-height:230px; overflow-y:auto; }
+.modal-actions { display:flex; gap:9px; flex-wrap:wrap; margin-top:16px; }
+/* same rule as the rest of the app: headings and buttons caps, the email
+   preview left exactly as it will be sent */
+.modal h3, .modal .btn, .modal .lbl { text-transform: uppercase; }
+.modal .email-subject, .modal .email-body { text-transform: none; }
+
 /* ---------- notifications control in the top bar ---------- */
 .notif-btn { display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
 .notif-btn.on  { border-color:var(--green); color:var(--green); }
