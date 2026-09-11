@@ -286,9 +286,13 @@ function renderGroups() {
     const head = el("div", "group-head");
     const left = el("div");
     left.append(el("h3", null, g.style_color));
+    const recv = gl.filter((l) => lineState(l).key === "received").length;
+    const shortOf = gl.filter((l) => ["short", "none"].includes(lineState(l).key)).length;
     left.append(el("p", "st", g.saved
-      ? `${sizesCounted} size${sizesCounted === 1 ? "" : "s"} counted · ${counted} received`
-      : `${gl.length} size${gl.length === 1 ? "" : "s"}` + (off ? ` · ${off} off` : "")));
+      ? `${recv} of ${gl.length} sizes received · ${counted} units`
+      : `${gl.length} size${gl.length === 1 ? "" : "s"}` +
+        (sizesCounted ? ` · ${recv} received` : "") +
+        (shortOf ? ` · ${shortOf} short` : "")));
 
     const actions = el("div", "group-head-actions");
     if (g.saved) {
@@ -453,13 +457,27 @@ async function recount(l, row, bx) {
   drawBoxes(l, bx, row); refreshLine(l, row); renderTotals();
 }
 
+/* Receipt state for one size, worked out from the counts rather than a
+   separate tick box - so the badge can never disagree with the numbers, and
+   the crew has nothing extra to tap while counting a truck. */
+function lineState(l) {
+  const hasCount = boxes.some((b) => b.line_id === l.id);
+  if (!hasCount) return { key: "uncounted", label: "Not counted" };
+  const c = l.counted_qty || 0;
+  if (l.po_qty == null) return { key: "counted", label: `${c} counted` };
+  const d = c - l.po_qty;
+  if (d === 0) return { key: "received", label: "Received" };
+  if (c === 0)  return { key: "none", label: "None arrived" };
+  if (d < 0)    return { key: "short", label: `Short ${d}` };
+  return { key: "over", label: `Over +${d}` };
+}
+
 function refreshLine(l, row) {
   row.querySelector(".counted").textContent = String(l.counted_qty || 0);
   const v = row.querySelector(".var");
-  if (l.po_qty == null) { v.textContent = ""; v.className = "var"; return; }
-  const d = (l.counted_qty || 0) - l.po_qty;
-  v.textContent = d === 0 ? "good" : `off by ${d > 0 ? "+" : ""}${d}`;
-  v.className = "var " + (d === 0 ? "ok" : "off");
+  const st = lineState(l);
+  v.textContent = st.label;
+  v.className = "var " + st.key;
 }
 
 /* ---------------- SKU autocomplete ---------------- */

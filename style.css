@@ -196,8 +196,11 @@ label.check input { width:20px; height:20px; min-height:0; }
 .line-nums .po { width:74px; min-height:38px; padding:6px 8px; }
 .counted { font-family:var(--display); font-size:17px; font-weight:800; min-width:34px; text-align:right; }
 .var { font-family:var(--display); font-size:12.5px; font-weight:800; padding:3px 8px; border-radius:999px; white-space:nowrap; }
-.var.ok  { background:var(--greenwash); color:var(--green); }
-.var.off { background:var(--pinkwash);  color:var(--pink); }
+.var.ok, .var.received { background:var(--greenwash); color:var(--green); }
+.var.off, .var.over     { background:var(--pinkwash);  color:var(--pink); }
+.var.short, .var.none   { background:var(--amberwash); color:var(--amber); }
+.var.uncounted          { background:var(--wash); color:var(--faint); }
+.var.counted            { background:var(--wash); color:var(--slate); }
 
 .boxes { display:flex; gap:7px; flex-wrap:wrap; align-items:center; margin-top:9px; }
 .box-in {
