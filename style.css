@@ -190,14 +190,6 @@ label.check input { width:20px; height:20px; min-height:0; }
 .group-head .btn.primary { background:#fff; border-color:#fff; color:var(--plum); }
 .group-head .btn.primary:hover { background:rgba(255,255,255,.88); }
 .group-head-actions { display:flex; gap:7px; align-items:center; flex-shrink:0; }
-.saved-badge {
-  display:inline-flex; align-items:center; gap:5px; font-family:var(--display);
-  font-size:9.5px; font-weight:800; letter-spacing:0.09em; text-transform:uppercase;
-  background:var(--blue); color:#fff; padding:3px 8px; border-radius:999px;
-}
-/* a received style keeps the blue signal, still light-on-dark */
-.group.saved.is-received .group-head { background:var(--blue); border-bottom-color:var(--blue); }
-.group.saved.is-received .group-head .btn.primary { color:var(--blue); }
 /* a frozen count: still readable, clearly not editable */
 .box-in[readonly] {
   background:var(--wash); color:var(--slate); border-style:dashed; cursor:default;

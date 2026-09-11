@@ -323,40 +323,26 @@ function renderGroups() {
   }
   groups.forEach((g) => {
     const gl = lines.filter((l) => l.group_id === g.id);
-    const off = gl.filter((l) => l.po_qty != null && (l.counted_qty || 0) !== l.po_qty).length;
-    const receiving = sheet?.status === "partial" || sheet?.status === "closed";
-    const sizesCounted = gl.filter((l) => boxes.some((b) => b.line_id === l.id)).length;
     const counted = gl.reduce((n, l) => n + (l.counted_qty || 0), 0);
 
-    const card = el("div", "group" + (g.saved ? " saved" : "") + (g.saved && receiving ? " is-received" : ""));
+    const card = el("div", "group" + (g.saved ? " saved" : ""));
     const head = el("div", "group-head");
     const left = el("div");
     left.append(el("h3", null, g.style_color));
-    const recv = gl.filter((l) => l.received === true).length;
-    const shortOf = gl.filter((l) => l.received === false).length;
-    left.append(el("p", "st", g.saved
-      ? (receiving
-          ? `${recv} of ${gl.length} sizes received · ${num(counted)} units`
-          : `${sizesCounted} of ${gl.length} sizes counted · ${num(counted)} units` +
-            (off ? ` · ${off} off` : ""))
-      : receiving
-        ? `${gl.length} size${gl.length === 1 ? "" : "s"}` +
-          (sizesCounted ? ` · ${recv} received` : "") +
-          (shortOf ? ` · ${shortOf} not in` : "")
-        : `${gl.length} size${gl.length === 1 ? "" : "s"}` + (off ? ` · ${off} off` : "")));
+    left.append(el("p", "st",
+      `${gl.length} size${gl.length === 1 ? "" : "s"} · ${num(counted)} counted`));
 
     const actions = el("div", "group-head-actions");
     if (g.saved) {
-      // No status badge while counting - a saved style is simply locked, and
-      // the Edit button already shows that. The badge only means something
-      // once receiving has started.
-      if (receiving) actions.append(el("span", "saved-badge", "\u2713 Received"));
+      // No status on the style bar at all - it contradicted the per-size
+      // marks underneath it. Status lives on the size rows, which is where
+      // it is actually decided.
       const edit = el("button", "btn ghost sm", "Edit");
       edit.addEventListener("click", () => setGroupSaved(g, false));
       actions.append(edit);
     } else {
       const save = el("button", "btn sm primary", "Save");
-      save.title = "Freeze these counts and fold this style away";
+      save.title = "Lock these counts so they cannot be changed by accident";
       save.addEventListener("click", () => setGroupSaved(g, true));
       actions.append(save);
     }
