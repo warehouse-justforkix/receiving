@@ -334,8 +334,8 @@ function renderGroups() {
     const head = el("div", "group-head");
     const left = el("div");
     left.append(el("h3", null, g.style_color));
-    const recv = gl.filter((l) => lineState(l).key === "received").length;
-    const shortOf = gl.filter((l) => ["short", "none", "notreceived"].includes(lineState(l).key)).length;
+    const recv = gl.filter((l) => l.received === true).length;
+    const shortOf = gl.filter((l) => l.received === false).length;
     left.append(el("p", "st", g.saved
       ? (receiving
           ? `${recv} of ${gl.length} sizes received · ${num(counted)} units`
@@ -410,6 +410,7 @@ function renderLine(l, frozen = false) {
   nums.append(el("span", "sm", "counted"));
   nums.append(el("span", "counted", num(l.counted_qty)));
   nums.append(el("span", "var", ""));
+  nums.append(el("span", "var recv-pill", ""));
   top.append(nums);
   row.append(top);
 
@@ -526,33 +527,26 @@ async function recount(l, row, bx) {
   drawBoxes(l, bx, row); refreshLine(l, row); renderTotals();
 }
 
-/* What a size row says depends on where the sheet is in its life.
-   While Counting or Pending Action the question is "does this match the PO",
-   so it reads good / off by N. Once receiving has started the question is
-   "did this arrive", so it reads Received / Short / Not received. */
+/* Variance: how the count compares with the PO. Always shown once a PO
+   quantity is in, at every stage of the sheet. */
 function lineState(l) {
+  if (l.po_qty == null) return { key: "", label: "" };
+  const d = (l.counted_qty || 0) - l.po_qty;
+  return d === 0
+    ? { key: "ok", label: "good" }
+    : { key: "off", label: `off by ${signed(d)}` };
+}
+
+/* Receipt: did this size arrive. Shown alongside the variance once receiving
+   has started - it answers a different question, so it never replaces it. */
+function receiptMark(l) {
   const receiving = sheet?.status === "partial" || sheet?.status === "closed";
-
-  if (!receiving) {
-    if (l.po_qty == null) return { key: "", label: "" };
-    const d = (l.counted_qty || 0) - l.po_qty;
-    return d === 0
-      ? { key: "ok", label: "good" }
-      : { key: "off", label: `off by ${signed(d)}` };
-  }
-
-  // an explicit mark, where someone has made the call, always wins
+  if (!receiving) return null;
   if (l.received === true)  return { key: "received", label: "Received" };
   if (l.received === false) return { key: "notreceived", label: "Not received" };
   const hasCount = boxes.some((b) => b.line_id === l.id);
   if (!hasCount) return { key: "uncounted", label: "Not counted" };
-  const c = l.counted_qty || 0;
-  if (l.po_qty == null) return { key: "counted", label: `${num(c)} counted` };
-  const d = c - l.po_qty;
-  if (d === 0) return { key: "received", label: "Received" };
-  if (c === 0)  return { key: "none", label: "None arrived" };
-  if (d < 0)    return { key: "short", label: `Short ${signed(d)}` };
-  return { key: "over", label: `Over ${signed(d)}` };
+  return null;                      // counted, but nobody has ruled on it yet
 }
 
 function refreshLine(l, row) {
@@ -561,9 +555,17 @@ function refreshLine(l, row) {
   const st = lineState(l);
   v.textContent = st.label;
   v.className = "var " + st.key;
+  v.hidden = !st.label;
+
+  const mark = receiptMark(l);
+  const r = row.querySelector(".recv-pill");
+  r.textContent = mark ? mark.label : "";
+  r.className = "var recv-pill " + (mark ? mark.key : "");
+  r.hidden = !mark;
+
   // a size marked Not received highlights the whole row, so it cannot be
   // missed when scanning a long size run
-  row.classList.toggle("is-notreceived", st.key === "notreceived");
+  row.classList.toggle("is-notreceived", mark?.key === "notreceived");
 }
 
 /* ---------------- SKU autocomplete ---------------- */
