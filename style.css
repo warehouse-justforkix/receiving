@@ -59,7 +59,11 @@ code { font-family:ui-monospace,Menlo,monospace; font-size:0.9em; background:var
   cursor:pointer; transition:transform .06s ease;
 }
 .btn:active { transform:translateY(1px); }
-.btn.primary { background:var(--plum); border-color:var(--plum); color:#fff; }
+/* Filled maroon buttons sit lower than the outlined ones - the fill already
+   gives them weight, so they do not need the height as well. */
+.btn.primary { background:var(--plum); border-color:var(--plum); color:#fff;
+  min-height:37px; padding:8px 16px; }
+.btn.primary.sm, .btn.sm.primary { min-height:31px; padding:6px 12px; }
 .btn.ghost { background:transparent; }
 .btn.sm { font-size:12.5px; padding:7px 11px; min-height:36px; }
 .btn.danger { color:var(--coral); border-color:var(--coral); }
