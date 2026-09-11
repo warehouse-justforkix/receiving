@@ -263,24 +263,20 @@ label.check input { width:20px; height:20px; min-height:0; }
 
 
 /* ---------- ALL CAPS ----------
-   Karley's request: the whole app renders in caps, except the generated
-   email draft, which must stay as written because it is sent to a vendor.
-   text-transform is display-only - stored data, and the text copied to the
-   clipboard, are unaffected. */
-.app, .auth-gate { text-transform: uppercase; }
-/* form controls do not reliably inherit text-transform, so name them */
-.app button, .app input, .app select, .app textarea,
-.auth-gate button, .auth-gate input, .auth-gate select, .auth-gate textarea
-  { text-transform: uppercase; }
-.app input::placeholder, .auth-gate input::placeholder,
-.app textarea::placeholder { text-transform: uppercase; }
+   Karley's request: EVERY word in the app renders in caps. The only
+   exception is the generated email draft, which is sent to a vendor and
+   must keep its real casing.
 
-/* the email draft is the one exception */
-.email-subject,
-.email-body,
-.email-body *,
-.email-subject *, 
-#emailOut .lbl + * { text-transform: none; }
+   `body *` is used deliberately so nothing escapes - toasts, <option>s,
+   placeholders and anything rendered later are all covered. text-transform
+   is display-only: stored data and clipboard text are untouched, so emails
+   still send exactly as written. */
+body, body * { text-transform: uppercase; }
+option, ::placeholder { text-transform: uppercase; }
+
+/* the one exception - the generated email draft */
+.email-subject, .email-subject *,
+.email-body, .email-body * { text-transform: none !important; }
 
 /* ---------- toast ---------- */
 .toast {

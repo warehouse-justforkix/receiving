@@ -1,6 +1,6 @@
 {
-  "name": "JFK Receiving",
-  "short_name": "Receiving",
+  "name": "JFK RECEIVING",
+  "short_name": "RECEIVING",
   "description": "Truck receiving procedure and count sheets for the Just For Kix warehouse.",
   "start_url": ".",
   "scope": ".",
