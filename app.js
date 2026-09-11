@@ -866,21 +866,74 @@ $("commentForm").addEventListener("submit", async (e) => {
 });
 
 /* ---------------- change log ---------------- */
+/* Turn a stored audit row into something a person can read. The raw row is
+   just a field name and two values, which says nothing about which size of
+   which style changed. */
+const AUDIT_FIELD = {
+  po_qty:      "PO qty ordered",
+  counted_qty: "counted",
+  received:    "receipt mark",
+  shelved:     "shelved",
+};
+
+function auditValue(field, v) {
+  if (v === null || v === undefined || v === "") return "blank";
+  if (field === "received") {
+    if (v === "true")  return "Received";
+    if (v === "false") return "Not received";
+    return "cleared";
+  }
+  if (field === "shelved") return v === "true" ? "yes" : "no";
+  const n = Number(v);
+  return Number.isFinite(n) ? num(n) : String(v);
+}
+
+/* The open sheet's lines and groups are already in memory, so the size and
+   style can be resolved without another query. */
+function auditWhat(a) {
+  const line = lines.find((l) => l.id === a.line_id);
+  if (!line) return null;
+  const g = groups.find((x) => x.id === line.group_id);
+  const style = g ? g.style_color : null;
+  const size = isOneSize(line.size) ? null : sizeLabel(line.size);
+  return [style, size].filter(Boolean).join(" ") || null;
+}
+
 async function loadAudit() {
   const { data, error } = await sb.from("recv_audit")
     .select("*, recv_people(name)").eq("sheet_id", sheet.id)
     .order("created_at", { ascending: false }).limit(80);
   if (error) return;
+  renderAudit(data);
+}
+
+function renderAudit(data) {
   const box = $("auditList"); box.textContent = "";
   const n = (data || []).length;
   const meta = $("auditCount");
   if (meta) meta.textContent = n ? `${n} change${n === 1 ? "" : "s"}` : "no changes yet";
   if (!n) { box.append(el("p", "muted sm", "No changes recorded yet.")); return; }
+
   data.forEach((a) => {
     const r = el("div", "audit-row");
-    r.append(el("b", null, a.recv_people?.name || "someone"));
-    r.append(el("span", null, `${a.field}: ${a.old_value ?? "—"} → ${a.new_value ?? "—"}`));
-    r.append(el("span", null, when(a.created_at)));
+    const field = AUDIT_FIELD[a.field] || a.field;
+    const what = auditWhat(a);
+    const from = auditValue(a.field, a.old_value);
+    const to   = auditValue(a.field, a.new_value);
+
+    const line1 = el("p", "audit-what");
+    line1.append(el("b", null, a.recv_people?.name || "Someone"));
+    line1.append(document.createTextNode(
+      what ? ` changed ${field} on ` : ` changed ${field}`));
+    if (what) line1.append(el("span", "audit-item", what));
+
+    const line2 = el("p", "audit-change");
+    line2.append(el("span", "audit-from", from));
+    line2.append(document.createTextNode(" \u2192 "));
+    line2.append(el("span", "audit-to", to));
+    line2.append(el("span", "audit-when", when(a.created_at)));
+
+    r.append(line1, line2);
     box.append(r);
   });
 }
@@ -1401,6 +1454,7 @@ $("resetForm")?.addEventListener("submit", async (e) => {
 if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
   window.__previewDoc = () => { docSteps = DEFAULT_DOC; renderDoc(); };
   window.__previewList = (list) => { sheets = list; renderSheets(); };
+  window.__previewAudit = (rows) => renderAudit(rows);
   window.__previewSheet = (d) => {
     sheet = d.sheet; groups = d.groups; lines = d.lines; boxes = d.boxes;
     renderGroups(); renderTotals(); paintLockButton();
