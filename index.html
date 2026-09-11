@@ -12,7 +12,7 @@
 <link rel="manifest" href="manifest.json">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="RECEIVING">
-<link rel="stylesheet" href="style.css?v=47">
+<link rel="stylesheet" href="style.css?v=49">
 </head>
 <body>
 
@@ -102,7 +102,10 @@
   <section class="view" id="view-sheet" hidden>
     <div class="sheet-topbar">
       <button class="btn ghost sm back" id="backToList">&larr; All sheets</button>
-      <button class="btn ghost sm danger admin-only" id="deleteSheetBtn" hidden>Delete sheet</button>
+      <div class="sheet-topbar-right">
+        <button class="btn sm primary" id="lockSheetBtn">Save sheet</button>
+        <button class="btn ghost sm danger admin-only" id="deleteSheetBtn" hidden>Delete sheet</button>
+      </div>
     </div>
     <div class="sheet-head">
       <input class="sheet-title" id="sheetTitle" placeholder="Sheet title">
@@ -255,6 +258,6 @@
 </div>
 
 <div class="toast" id="toast" hidden></div>
-<script type="module" src="app.js?v=47"></script>
+<script type="module" src="app.js?v=49"></script>
 </body>
 </html>

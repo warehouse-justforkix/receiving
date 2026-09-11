@@ -111,6 +111,7 @@ label.check input { width:20px; height:20px; min-height:0; }
 .view-head { display:flex; align-items:flex-end; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:12px; }
 .view-head h2 { font-size:19px; font-weight:800; }
 .sheet-topbar { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+.sheet-topbar-right { display:flex; align-items:center; gap:8px; }
 .back { margin-bottom:0; }
 .btn.danger-solid { background:var(--coral); border-color:var(--coral); color:#fff; }
 
@@ -169,8 +170,9 @@ label.check input { width:20px; height:20px; min-height:0; }
    the page, so they read as a summary line, not as the main event. */
 .totals { display:flex; flex-wrap:wrap; gap:9px; margin-bottom:14px; }
 .tile {
+  flex:1 1 0; min-width:0;
   background:var(--card); border:1.5px solid var(--line); border-radius:var(--r);
-  padding:9px 16px 10px; display:flex; align-items:baseline; gap:9px; min-width:0;
+  padding:11px 16px 12px; display:flex; align-items:baseline; gap:10px;
 }
 .tile .k { font-family:var(--display); font-size:9px; font-weight:700; letter-spacing:0.11em; text-transform:uppercase; color:var(--faint); }
 .tile .v { font-family:var(--display); font-size:19px; font-weight:800; font-variant-numeric:tabular-nums; line-height:1; }

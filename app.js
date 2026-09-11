@@ -268,7 +268,7 @@ async function openSheet(id) {
   $("sheetStatus").value = s.status;
   $("sheetAdj").value = s.adjustment_number || "";
   $("emailOut").hidden = true; $("copyEmailBtn").hidden = true;
-  renderGroups(); renderTotals(); loadComments(); loadAudit();
+  renderGroups(); renderTotals(); paintLockButton(); loadComments(); loadAudit();
   show("sheet");
 }
 
@@ -332,20 +332,9 @@ function renderGroups() {
     left.append(el("p", "st",
       `${gl.length} size${gl.length === 1 ? "" : "s"} · ${num(counted)} counted`));
 
+    // Saving is a whole-sheet action now, at the top of the page. A style bar
+    // only carries its own name, its counts, and the button to take it off.
     const actions = el("div", "group-head-actions");
-    if (g.saved) {
-      // No status on the style bar at all - it contradicted the per-size
-      // marks underneath it. Status lives on the size rows, which is where
-      // it is actually decided.
-      const edit = el("button", "btn ghost sm", "Edit");
-      edit.addEventListener("click", () => setGroupSaved(g, false));
-      actions.append(edit);
-    } else {
-      const save = el("button", "btn sm primary", "Save");
-      save.title = "Lock these counts so they cannot be changed by accident";
-      save.addEventListener("click", () => setGroupSaved(g, true));
-      actions.append(save);
-    }
     const del = el("button", "btn ghost sm", "Remove");
     del.addEventListener("click", async () => {
       if (!confirm(`Remove ${g.style_color} and its counts from this sheet?`)) return;
@@ -363,13 +352,46 @@ function renderGroups() {
   });
 }
 
+/* The sheet is locked when every style on it is saved. Keeping it derived
+   means no new column and no second source of truth. */
+function sheetLocked() {
+  return groups.length > 0 && groups.every((g) => g.saved);
+}
+
+function paintLockButton() {
+  const b = $("lockSheetBtn");
+  if (!b) return;
+  if (!groups.length) { b.hidden = true; return; }
+  b.hidden = false;
+  const locked = sheetLocked();
+  b.textContent = locked ? "Edit sheet" : "Save sheet";
+  b.className = "btn sm " + (locked ? "ghost" : "primary");
+  b.title = locked
+    ? "Unlock every count on this sheet for changes"
+    : "Lock every count on this sheet so they cannot be changed by accident";
+}
+
+$("lockSheetBtn")?.addEventListener("click", async () => {
+  if (!sheet || !groups.length) return;
+  const next = !sheetLocked();
+  const ids = groups.filter((g) => g.saved !== next).map((g) => g.id);
+  if (!ids.length) return;
+  $("lockSheetBtn").disabled = true;
+  const { error } = await sb.from("recv_sheet_groups").update({ saved: next }).in("id", ids);
+  $("lockSheetBtn").disabled = false;
+  if (error) return fail(next ? "Saving sheet" : "Reopening sheet", error);
+  groups.forEach((g) => { g.saved = next; });
+  renderGroups(); renderTotals(); paintLockButton();
+  toast(next ? "Sheet saved - counts locked" : "Sheet reopened for editing");
+});
+
 async function setGroupSaved(g, saved) {
   const { error } = await sb.from("recv_sheet_groups").update({ saved }).eq("id", g.id);
   if (error) return fail(saved ? "Saving style" : "Reopening style", error);
   g.saved = saved;
   const idx = groups.findIndex((x) => x.id === g.id);
   if (idx >= 0) groups[idx].saved = saved;
-  renderGroups(); renderTotals();
+  renderGroups(); renderTotals(); paintLockButton();
   toast(saved ? `${g.style_color} saved` : `${g.style_color} reopened for editing`);
 }
 
@@ -1361,7 +1383,7 @@ if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
   window.__previewList = (list) => { sheets = list; renderSheets(); };
   window.__previewSheet = (d) => {
     sheet = d.sheet; groups = d.groups; lines = d.lines; boxes = d.boxes;
-    renderGroups(); renderTotals();
+    renderGroups(); renderTotals(); paintLockButton();
   };
 }
 
