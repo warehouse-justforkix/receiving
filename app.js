@@ -330,13 +330,16 @@ function renderGroups() {
     const head = el("div", "group-head");
     const left = el("div");
     left.append(el("h3", null, g.style_color));
+    const receiving = sheet?.status === "partial" || sheet?.status === "closed";
     const recv = gl.filter((l) => lineState(l).key === "received").length;
-    const shortOf = gl.filter((l) => ["short", "none"].includes(lineState(l).key)).length;
+    const shortOf = gl.filter((l) => ["short", "none", "notreceived"].includes(lineState(l).key)).length;
     left.append(el("p", "st", g.saved
       ? `${recv} of ${gl.length} sizes received · ${counted} units`
-      : `${gl.length} size${gl.length === 1 ? "" : "s"}` +
-        (sizesCounted ? ` · ${recv} received` : "") +
-        (shortOf ? ` · ${shortOf} short` : "")));
+      : receiving
+        ? `${gl.length} size${gl.length === 1 ? "" : "s"}` +
+          (sizesCounted ? ` · ${recv} received` : "") +
+          (shortOf ? ` · ${shortOf} not in` : "")
+        : `${gl.length} size${gl.length === 1 ? "" : "s"}` + (off ? ` · ${off} off` : "")));
 
     const actions = el("div", "group-head-actions");
     if (g.saved) {
@@ -524,10 +527,21 @@ async function recount(l, row, bx) {
   drawBoxes(l, bx, row); refreshLine(l, row); renderTotals();
 }
 
-/* Receipt state for one size, worked out from the counts rather than a
-   separate tick box - so the badge can never disagree with the numbers, and
-   the crew has nothing extra to tap while counting a truck. */
+/* What a size row says depends on where the sheet is in its life.
+   While Counting or Pending Action the question is "does this match the PO",
+   so it reads good / off by N. Once receiving has started the question is
+   "did this arrive", so it reads Received / Short / Not received. */
 function lineState(l) {
+  const receiving = sheet?.status === "partial" || sheet?.status === "closed";
+
+  if (!receiving) {
+    if (l.po_qty == null) return { key: "", label: "" };
+    const d = (l.counted_qty || 0) - l.po_qty;
+    return d === 0
+      ? { key: "ok", label: "good" }
+      : { key: "off", label: `off by ${d > 0 ? "+" : ""}${d}` };
+  }
+
   // an explicit mark, where someone has made the call, always wins
   if (l.received === true)  return { key: "received", label: "Received" };
   if (l.received === false) return { key: "notreceived", label: "Not received" };
