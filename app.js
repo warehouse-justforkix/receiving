@@ -902,7 +902,7 @@ async function paintNotifTop(state) {
     b.classList.add("blocked"); icon.innerHTML = "&#128263;"; label.textContent = "Blocked";
     b.title = "Notifications are blocked in this browser's settings for this site";
   } else if (state === "on") {
-    b.classList.add("on"); icon.innerHTML = "&#128276;"; label.textContent = "Notifications on";
+    b.classList.add("on"); icon.innerHTML = "&#128276;"; label.textContent = "Notifications On";
     b.title = "Notifications are ON for this device - click to turn off";
   } else {
     b.classList.add("off"); icon.innerHTML = "&#128277;"; label.textContent = "Notifications";
