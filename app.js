@@ -319,18 +319,6 @@ function renderLine(l) {
   const bx = el("div", "boxes");
   row.append(bx);
 
-  const bins = el("div", "bins");
-  [["pick_bin", "Pick bin"], ["overstock_bin", "Overstock bin"]].forEach(([col, ph]) => {
-    const i = el("input"); i.placeholder = ph; i.value = l[col] || "";
-    i.addEventListener("change", async () => {
-      const { error } = await sb.from("recv_sheet_lines").update({ [col]: i.value.trim() || null }).eq("id", l.id);
-      if (error) return fail("Saving bin", error);
-      l[col] = i.value.trim() || null; loadAudit();
-    });
-    bins.append(i);
-  });
-  row.append(bins);
-
   drawBoxes(l, bx, row);
   refreshLine(l, row);
   return row;
