@@ -61,7 +61,9 @@ async function boot() {
   if (!person) {
     $("authErr").textContent = "That email hasn't been invited to Receiving yet. Ask Karley to add it in Admin.";
     $("authErr").hidden = false;
-    await sb.auth.signOut();
+    // local scope only: a global signOut would also end this person's
+    // Hub and Returns sessions, which share this Supabase project.
+    await sb.auth.signOut({ scope: "local" });
     $("authGate").hidden = false; $("app").hidden = true;
     return;
   }
