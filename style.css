@@ -8,9 +8,9 @@
 :root {
   --ink:#1c1e22; --slate:#5b626c; --faint:#8b929b;
   --plum:#742d3f; --pink:#EC008C; --green:#1e6b46; --amber:#8a5a12;
-  --mint:#3fbf87; --tan:#dfa96d; --coral:#f4636e;
+  --mint:#3fbf87; --tan:#dfa96d; --coral:#f4636e; --blue:#1b5fa8;
   --line:#dcdfe3; --wash:#f5f3f4; --card:#ffffff; --ground:#eeeaec;
-  --pinkwash:#FCE4F1; --greenwash:#E7F1EB; --amberwash:#FBF2DF;
+  --pinkwash:#FCE4F1; --greenwash:#E7F1EB; --amberwash:#FBF2DF; --bluewash:#E4EEF9;
   --display:'Libre Franklin','Helvetica Neue',Helvetica,Arial,sans-serif;
   --body:-apple-system,BlinkMacSystemFont,'Avenir Next',Avenir,'Segoe UI',sans-serif;
   --r:10px;
@@ -19,17 +19,17 @@
   :root:not([data-theme="light"]) {
     --ink:#eceef1; --slate:#a8b0ba; --faint:#7d858f;
     --plum:#e0a2b2; --pink:#FF5DB1; --green:#6cc294; --amber:#dfb162;
-    --mint:#67e0a8; --tan:#dfa96d; --coral:#f4636e;
+    --mint:#67e0a8; --tan:#dfa96d; --coral:#f4636e; --blue:#6fb2ff;
     --line:#373c44; --wash:#22262b; --card:#191c20; --ground:#0e1013;
-    --pinkwash:#3a1c2c; --greenwash:#172a20; --amberwash:#332a18;
+    --pinkwash:#3a1c2c; --greenwash:#172a20; --amberwash:#332a18; --bluewash:#16283d; --bluewash:#16283d;
   }
 }
 :root[data-theme="dark"] {
   --ink:#eceef1; --slate:#a8b0ba; --faint:#7d858f;
   --plum:#e0a2b2; --pink:#FF5DB1; --green:#6cc294; --amber:#dfb162;
-  --mint:#67e0a8; --tan:#dfa96d; --coral:#f4636e;
+  --mint:#67e0a8; --tan:#dfa96d; --coral:#f4636e; --blue:#6fb2ff;
   --line:#373c44; --wash:#22262b; --card:#191c20; --ground:#0e1013;
-  --pinkwash:#3a1c2c; --greenwash:#172a20; --amberwash:#332a18;
+  --pinkwash:#3a1c2c; --greenwash:#172a20; --amberwash:#332a18; --bluewash:#16283d;
 }
 
 * { box-sizing: border-box; }
@@ -167,7 +167,7 @@ label.check input { width:20px; height:20px; min-height:0; }
 .saved-badge {
   display:inline-flex; align-items:center; gap:5px; font-family:var(--display);
   font-size:9.5px; font-weight:800; letter-spacing:0.09em; text-transform:uppercase;
-  background:var(--green); color:#fff; padding:3px 8px; border-radius:999px;
+  background:var(--blue); color:#fff; padding:3px 8px; border-radius:999px;
 }
 /* a frozen count: still readable, clearly not editable */
 .box-in[readonly] {
@@ -196,11 +196,12 @@ label.check input { width:20px; height:20px; min-height:0; }
 .line-nums .po { width:74px; min-height:38px; padding:6px 8px; }
 .counted { font-family:var(--display); font-size:17px; font-weight:800; min-width:34px; text-align:right; }
 .var { font-family:var(--display); font-size:12.5px; font-weight:800; padding:3px 8px; border-radius:999px; white-space:nowrap; }
-.var.ok, .var.received { background:var(--greenwash); color:var(--green); }
+.var.ok        { background:var(--greenwash); color:var(--green); }
+.var.received  { background:var(--bluewash);  color:var(--blue); }
 .var.off, .var.over     { background:var(--pinkwash);  color:var(--pink); }
 .var.short, .var.none   { background:var(--amberwash); color:var(--amber); }
 .var.uncounted          { background:var(--wash); color:var(--faint); }
-.var.notreceived        { background:var(--pinkwash); color:var(--pink); }
+.var.notreceived        { background:var(--pinkwash); color:var(--coral); }
 .var.counted            { background:var(--wash); color:var(--slate); }
 
 .boxes { display:flex; gap:7px; flex-wrap:wrap; align-items:center; margin-top:9px; }
@@ -222,7 +223,7 @@ label.check input { width:20px; height:20px; min-height:0; }
   text-transform:uppercase; color:var(--faint);
 }
 .recv-btn { min-height:38px; padding:7px 13px; font-size:12.5px; }
-.recv-btn.on.yes { background:var(--green); border-color:var(--green); color:#fff; }
+.recv-btn.on.yes { background:var(--blue);  border-color:var(--blue);  color:#fff; }
 .recv-btn.on.no  { background:var(--coral); border-color:var(--coral); color:#fff; }
 
 .bins { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:8px; margin-top:9px; }
