@@ -2,3 +2,4 @@ tools/.env
 .DS_Store
 .playwright-mcp/
 SETUP-SECRETS.txt
+db/webhooks.sql

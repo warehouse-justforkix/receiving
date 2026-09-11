@@ -113,7 +113,17 @@ and `PUSH_TRIGGER_SECRET` already exist for the Hub.
 > Secret values can't be read back once saved — the dashboard only ever shows
 > that they exist. That is why `RECV_SYNC_SECRET` has to be written down now.
 
-### 5. Wire the notifications (one SQL paste)
+### 5. Wire the notifications
+
+Database Webhooks must be installed once for the project (Dashboard ->
+Integrations -> Webhooks). Then run `db/webhooks.sql`, which creates the two
+trigger webhooks pointing at `recv-push`.
+
+**`db/webhooks.sql` is generated locally and gitignored** - it embeds
+`RECV_PUSH_SECRET` in plain text. Regenerate it rather than committing it.
+
+<!-- old note -->
+### 5b. (historical)
 
 Nobody can read `PUSH_TRIGGER_SECRET` back to type it into a new webhook, so this
 clones the Hub's existing, working push webhook onto the Receiving tables instead.
